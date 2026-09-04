@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0b5f4e">
+<link rel="manifest" href="manifest.webmanifest">
+<title>لوحة التشييك — سفن ايكونز</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Noto+Kufi+Arabic:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="top wide">
+  <div class="in">
+    <div class="brand">
+      <div class="n" id="coName">سفن ايكونز</div>
+      <h1>لوحة التشييك</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="who" id="who"></div>
+      <button class="btn g sm noprint" onclick="location.href='index.html'">التطبيق</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap wide">
+  <div id="view"><div class="card"><h2>جارٍ التحميل…</h2></div></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="lib.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
