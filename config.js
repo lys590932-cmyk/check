@@ -7,8 +7,8 @@ window.CONFIG = {
   /* من Supabase → Project Settings → Data API
      URL  = Project URL
      KEY  = Publishable key (أو Legacy → anon public) */
-  SUPABASE_URL: "https://YOUR-PROJECT-ref.supabase.co",
-  SUPABASE_KEY: "YOUR-PUBLISHABLE-KEY",
+    SUPABASE_URL: "https://ntwbbuweottxgwohrxpv.supabase.co",
+  SUPABASE_KEY: "sb_publishable_5TJpMeZup9M2YHnLycW9jA_JccORmq0",
 
   /* المنطقة الزمنية لحساب «يوم العمل» */
   TZ: "Asia/Kuwait",
