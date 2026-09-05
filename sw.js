@@ -1,5 +1,5 @@
 /* عامل الخدمة — يجعل التطبيق يفتح ويعمل بلا إنترنت */
-const V = "si-v1.0.1";
+const V = "si-v1.0.0";
 const SHELL = [
   "./", "./index.html", "./admin.html", "./report.html",
   "./styles.css", "./config.js", "./lib.js", "./app.js", "./admin.js", "./report.js",
