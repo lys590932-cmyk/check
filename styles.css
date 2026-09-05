@@ -201,3 +201,215 @@ tbody tr:hover{background:var(--surface-2)}
   .scale{grid-template-columns:repeat(2,1fr)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   ▓▓ طبقة الموبايل الاحترافية — v2
+   تنطبق على تطبيق الميدان فقط (body.app) حتى لا تمسّ
+   لوحة الإدارة ولا صفحة التقرير المطبوعة.
+   ═══════════════════════════════════════════════════════════════ */
+:root{
+  --r-lg:18px; --r-md:13px; --r-sm:9px;
+  --e1:0 1px 2px rgba(13,26,23,.06);
+  --e2:0 2px 6px rgba(13,26,23,.06),0 10px 26px rgba(13,26,23,.06);
+  --e3:0 8px 20px rgba(13,26,23,.10),0 24px 48px rgba(13,26,23,.10);
+  --ease:cubic-bezier(.32,.72,0,1);
+  --tap:52px;                        /* أصغر مساحة لمس مقبولة */
+  --nav-h:calc(60px + env(safe-area-inset-bottom));
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --e1:0 1px 2px rgba(0,0,0,.5);
+  --e2:0 2px 6px rgba(0,0,0,.45),0 10px 26px rgba(0,0,0,.4);
+  --e3:0 8px 20px rgba(0,0,0,.55),0 24px 48px rgba(0,0,0,.5);
+}}
+
+body.app{font-size:15.5px;padding-bottom:0;overscroll-behavior-y:contain}
+body.app .wrap{padding:0 15px calc(var(--nav-h) + 22px)}
+
+/* ── الرأس ── */
+body.app header.top{
+  padding:calc(12px + env(safe-area-inset-top)) 0 11px;
+  background:color-mix(in srgb,var(--ground) 88%,transparent);
+  backdrop-filter:saturate(180%) blur(14px);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid transparent;transition:border-color .2s}
+body.app header.top.stuck{border-bottom-color:var(--rule-2)}
+body.app .brand h1{font-size:19px;letter-spacing:-.01em}
+body.app .brand .n{font-size:10px;letter-spacing:.2em}
+
+/* ── شريط التنقّل السفلي ── */
+.bnav{display:none}
+body.app .bnav{
+  display:flex;position:fixed;inset-inline:0;bottom:0;z-index:70;
+  padding:5px 6px env(safe-area-inset-bottom);
+  background:color-mix(in srgb,var(--surface) 92%,transparent);
+  backdrop-filter:saturate(180%) blur(18px);
+  -webkit-backdrop-filter:saturate(180%) blur(18px);
+  border-top:1px solid var(--rule-2)}
+.bnav button{
+  flex:1;border:0;background:none;cursor:pointer;position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  min-height:54px;padding:6px 2px;border-radius:var(--r-md);
+  color:var(--ink-3);font-weight:600;font-size:10.5px;
+  transition:color .18s var(--ease),background .18s var(--ease)}
+.bnav button svg{width:23px;height:23px;stroke-width:1.9;
+  transition:transform .22s var(--ease)}
+.bnav button[aria-selected=true]{color:var(--accent)}
+.bnav button[aria-selected=true] svg{transform:translateY(-1px) scale(1.06)}
+.bnav button:active{background:var(--surface-2);transform:scale(.96)}
+.bnav .dot{position:absolute;top:7px;inset-inline-end:calc(50% - 19px);
+  min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:var(--bad);
+  color:#fff;font-size:10px;font-weight:800;line-height:17px;text-align:center;
+  box-shadow:0 0 0 2px var(--surface)}
+
+/* ── بطاقات أنعم ── */
+body.app .card{border-radius:var(--r-lg);padding:17px;margin-bottom:13px;
+  box-shadow:var(--e2);border-color:var(--rule-2)}
+body.app .card>h2{font-size:16.5px;font-weight:800;letter-spacing:-.01em}
+body.app .banner{border-radius:var(--r-md);padding:13px 14px;font-size:13px}
+
+/* ── البطاقة الافتتاحية ── */
+.hero{position:relative;overflow:hidden;color:#fff;border-radius:var(--r-lg);
+  padding:19px 18px;margin-bottom:14px;box-shadow:var(--e3);
+  background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%)}
+.hero::after{content:"";position:absolute;inset-inline-end:-46px;top:-46px;
+  width:168px;height:168px;border-radius:50%;background:rgba(255,255,255,.09)}
+.hero .hl{position:relative;z-index:1}
+.hero .greet{font-size:12.5px;opacity:.86;font-weight:500}
+.hero h2{font-size:21px;font-weight:900;margin:2px 0 3px;letter-spacing:-.015em;color:#fff}
+.hero .date{font-size:12px;opacity:.82}
+.hero .ring{position:absolute;inset-inline-end:18px;top:50%;transform:translateY(-50%);
+  z-index:1;width:66px;height:66px}
+.hero .ring svg{transform:rotate(-90deg)}
+.hero .ring .rt{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+
+/* ── صفوف الورديات ── */
+body.app .shift{border-radius:var(--r-md);padding:14px;gap:13px;margin-bottom:10px;
+  border:1px solid var(--rule-2);transition:transform .16s var(--ease),box-shadow .16s var(--ease)}
+body.app .shift:active{transform:scale(.985)}
+body.app .shift .ic{width:44px;height:44px;font-size:17px;border-radius:14px}
+body.app .shift.done{background:var(--ok-w);border-color:transparent}
+body.app .shift.done .ic{background:var(--ok)}
+body.app .shift .t b{font-size:15px;font-weight:700}
+body.app .shift .t span{font-size:12px;line-height:1.55;display:block;margin-top:1px}
+body.app .btn{border-radius:var(--r-sm);padding:14px 18px;font-size:15px;
+  min-height:var(--tap);transition:transform .14s var(--ease),opacity .14s}
+body.app .btn:active{transform:scale(.97)}
+body.app .btn.sm{min-height:40px;padding:9px 15px;font-size:13.5px}
+body.app .btn.p{box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 32%,transparent)}
+
+/* ── رأس التشييك الثابت ── */
+body.app .prog{top:calc(63px + env(safe-area-inset-top));padding:10px 0 9px;
+  background:color-mix(in srgb,var(--ground) 92%,transparent);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  margin-inline:-15px;padding-inline:15px;border-bottom:1px solid var(--rule-2)}
+body.app .bar{height:7px}
+body.app .bar i{background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transition:width .45s var(--ease)}
+body.app .pmeta{font-size:12px;margin-top:7px}
+body.app .pmeta b{font-size:16px}
+
+/* ── شريط المحاور ── */
+.secnav{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;
+  margin:0 -15px 12px;padding:2px 15px 9px;scroll-snap-type:x proximity}
+.secnav::-webkit-scrollbar{display:none}
+.secnav button{flex:0 0 auto;scroll-snap-align:start;border:1px solid var(--rule);
+  background:var(--surface);color:var(--ink-2);border-radius:99px;
+  padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;
+  transition:all .18s var(--ease)}
+.secnav button .n{font-variant-numeric:tabular-nums;opacity:.7;margin-inline-start:5px}
+.secnav button[aria-selected=true]{background:var(--accent);color:var(--on-accent);
+  border-color:transparent;box-shadow:var(--e1)}
+.secnav button.full{border-color:var(--ok);color:var(--ok)}
+.secnav button.full[aria-selected=true]{background:var(--ok);color:#fff}
+
+/* ── عنوان المحور ── */
+body.app .sec-h{font-size:12px;letter-spacing:.1em;margin:0 0 4px;
+  padding-top:0;border-top:0}
+
+/* ── البنود ── */
+body.app .q{padding:17px 0;border-bottom:1px solid var(--rule-2);scroll-margin-top:130px}
+body.app .q .lab{font-size:15.5px;font-weight:650;line-height:1.55}
+body.app .how{font-size:13px;margin:6px 0 10px;padding-inline-start:11px;
+  border-inline-start:3px solid var(--wash);border-radius:2px}
+body.app .std{font-size:13px;border-radius:var(--r-sm);padding:11px 13px;line-height:1.75}
+body.app .more{font-size:12.5px;padding:2px 0 10px}
+body.app .chip{font-size:10.5px;padding:2px 9px}
+
+/* ── مقياس التقييم ── */
+body.app .scale{grid-template-columns:repeat(4,1fr);gap:7px}
+body.app .scale button{
+  min-height:var(--tap);border-radius:var(--r-sm);font-size:13px;font-weight:700;
+  padding:9px 3px;border-width:1.5px;
+  transition:transform .13s var(--ease),background .16s,color .16s,border-color .16s}
+body.app .scale button:active{transform:scale(.94)}
+body.app .scale button[aria-pressed=true]{box-shadow:var(--e1);transform:scale(1.015)}
+@media (max-width:400px){body.app .scale{grid-template-columns:repeat(2,1fr)}}
+
+/* ── الصور ── */
+body.app .ph .pb{border-radius:var(--r-sm);padding:13px 16px;font-size:13.5px;
+  border-width:1.5px;display:flex;align-items:center;gap:8px;min-height:48px;
+  justify-content:center;background:var(--wash)}
+body.app .ph .thumbs{gap:8px;margin-top:10px}
+body.app .ph img{width:88px;height:88px;border-radius:var(--r-sm)}
+body.app .ph .rm{width:24px;height:24px;font-size:15px;top:4px;inset-inline-start:4px}
+
+/* ── الملاحظة الإلزامية ── */
+body.app .fnd{border-radius:var(--r-md);padding:14px;border-width:1.5px}
+body.app .fnd.on{animation:slideIn .3s var(--ease)}
+body.app textarea,body.app input,body.app select{border-radius:var(--r-sm);padding:12px 13px;
+  border-width:1.5px;font-size:15.5px}
+
+/* ── شريط الإرسال الثابت ── */
+.sbar{position:fixed;inset-inline:0;bottom:0;z-index:65;display:flex;gap:9px;
+  padding:11px 15px calc(11px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--surface) 94%,transparent);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border-top:1px solid var(--rule-2);box-shadow:0 -6px 24px rgba(13,26,23,.06)}
+.sbar .btn{flex:1;margin:0}
+.sbar .btn.g{flex:0 0 42%}
+
+/* ── هياكل التحميل ── */
+.skl{border-radius:var(--r-md);background:linear-gradient(100deg,
+  var(--rule-2) 30%,var(--surface-2) 50%,var(--rule-2) 70%);
+  background-size:220% 100%;animation:shim 1.3s infinite linear}
+.skl+.skl{margin-top:10px}
+@keyframes shim{to{background-position:-220% 0}}
+
+/* ── حالة فارغة ── */
+body.app .empty{padding:44px 18px;font-size:14px}
+.empty .ei{width:60px;height:60px;margin:0 auto 12px;border-radius:50%;
+  background:var(--wash);display:flex;align-items:center;justify-content:center;color:var(--accent)}
+.empty .et{font-weight:700;color:var(--ink-2);font-size:15px;margin-bottom:3px}
+
+/* ── حركات ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+@keyframes slideIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
+body.app #view>*{animation:fadeUp .32s var(--ease) both}
+body.app #view>*:nth-child(2){animation-delay:.03s}
+body.app #view>*:nth-child(3){animation-delay:.06s}
+body.app #view>*:nth-child(4){animation-delay:.09s}
+
+/* ── شاشة النتيجة ── */
+.done-ring{width:118px;height:118px;margin:0 auto 14px;position:relative;
+  animation:pop .5s var(--ease) both}
+.done-ring .dv{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;line-height:1}
+.done-ring .dv b{font-size:31px;font-weight:900;font-variant-numeric:tabular-nums}
+.done-ring .dv span{font-size:11px;color:var(--ink-3);margin-top:3px}
+
+/* ── إخفاء أشرطة التبويب القديمة داخل التطبيق ── */
+body.app nav.tabs{display:none}
+
+/* ── سطح مكتبي: نُبقي الشريط السفلي لكن نضبط العرض ──
+   نستخدم left/transform الفيزيائية عمداً — التوسيط لا علاقة له
+   باتجاه الكتابة، والخصائص المنطقية تنعكس هنا وتكسر المحاذاة. */
+@media (min-width:760px){
+  body.app .bnav{left:50%;right:auto;transform:translateX(-50%);
+    width:min(560px,100%);border-radius:var(--r-lg) var(--r-lg) 0 0;
+    border:1px solid var(--rule-2);border-bottom:0;box-shadow:var(--e3)}
+  .sbar{left:50%;right:auto;transform:translateX(-50%);width:min(600px,100%)}
+}
+@media print{.bnav,.sbar,.secnav,.hero{display:none!important}}

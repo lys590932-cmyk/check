@@ -33,7 +33,7 @@
     if (!ME) { location.replace("index.html"); return; }
     if (ME.role === "branch") { location.replace("index.html"); return; }
     $("#who").innerHTML = `<b>${esc(ME.full_name)}</b>${
-      { admin: "الإدارة", area: "مشرف منطقة" }[ME.role] || ""}`;
+      { admin: "الإدارة", area: "QA &amp; Training" }[ME.role] || ""}`;
     CAT = await catalog();
     go(TAB);
   }
@@ -77,12 +77,12 @@
         ${kpi("إخفاقات حرجة", cf, cf ? "r" : "g")}
         ${kpi("ملاحظات مفتوحة", open, open ? "a" : "g")}
         ${kpi("منها متأخرة", late, late ? "r" : "g")}
-        ${kpi("بلا زيارة مشرف", noV, noV ? "a" : "g")}
+        ${kpi("بلا زيارة QA &amp; Training", noV, noV ? "a" : "g")}
       </div>
       <div class="card"><h2>الفروع مقابل المستهدف</h2>
       <p class="sub">آخر ٢٨ يوماً. «الفارق» = النتيجة ناقص مستهدف الفرع.</p>
       <div class="tw"><table><thead><tr>
-        <th>#</th><th>الموقع</th><th>زيارة المشرف</th><th>الورديات</th><th>المستهدف</th>
+        <th>#</th><th>الموقع</th><th>زيارة QA &amp; Training</th><th>الورديات</th><th>المستهدف</th>
         <th>الفارق</th><th></th><th>حرج</th><th>ملاحظات</th><th>آخر تشييك</th><th></th>
       </tr></thead><tbody>` +
       (rows.length ? rows.map((r, i) => {
@@ -319,7 +319,7 @@
     a.download = name; a.click();
   }
   function exportCsv() {
-    const rows = [["الموقع", "زيارة المشرف", "الورديات", "المستهدف", "الفارق",
+    const rows = [["الموقع", "زيارة QA & Training", "الورديات", "المستهدف", "الفارق",
       "إخفاقات حرجة", "ملاحظات مفتوحة", "متأخرة", "آخر تشييك"]];
     (window.__SUM || []).forEach(r => {
       const p = r.visit_pct ?? r.shift_pct;

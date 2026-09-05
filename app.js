@@ -34,6 +34,47 @@
     setTimeout(() => d.remove(), 4200);
   }
 
+  /* ─────────── إيقاع لمسي خفيف ─────────── */
+  function tap(ms) { try { navigator.vibrate && navigator.vibrate(ms || 8); } catch (_) { } }
+
+  /* ─────────── حلقة تقدّم ─────────── */
+  function ring(pct, size, sw, color, track) {
+    const r = (size - sw) / 2, c = 2 * Math.PI * r;
+    const off = c * (1 - Math.max(0, Math.min(1, pct || 0)));
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${track}" stroke-width="${sw}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+        stroke-linecap="round" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"
+        style="transition:stroke-dashoffset .6s cubic-bezier(.32,.72,0,1)"/></svg>`;
+  }
+
+  /* ─────────── هيكل تحميل ─────────── */
+  const skeleton = n => `<div class="card">` + Array.from({ length: n || 3 },
+    (_, i) => `<div class="skl" style="height:${i ? 56 : 22}px"></div>`).join("") + `</div>`;
+
+  /* ─────────── الشريط السفلي ─────────── */
+  function nav(active) {
+    const b = $("#bnav"); if (!b) return;
+    b.classList.toggle("hide", !ME || active === false);
+    const board = $("#nvBoard");
+    if (board) board.classList.toggle("hide", !(ME && (ME.role === "admin" || ME.role === "area")));
+    ["nvToday", "nvFind", "nvBoard"].forEach(id => {
+      const el = $("#" + id);
+      if (el) el.setAttribute("aria-selected", String(id === active));
+    });
+  }
+  function navBadge(n) {
+    const d = $("#nvFindN"); if (!d) return;
+    d.textContent = n > 99 ? "99+" : n;
+    d.classList.toggle("hide", !n);
+  }
+
+  /* رأس يلتصق عند التمرير */
+  addEventListener("scroll", () => {
+    const h = document.querySelector("header.top");
+    if (h) h.classList.toggle("stuck", scrollY > 4);
+  }, { passive: true });
+
   /* ─────────── الإقلاع ─────────── */
   async function boot() {
     paintNet();
@@ -47,7 +88,7 @@
     flushQueue();
     home();
   }
-  const roleAr = r => ({ admin: "الإدارة", area: "مشرف منطقة", branch: "مدير فرع" }[r] || r);
+  const roleAr = r => ({ admin: "الإدارة", area: "QA &amp; Training", branch: "مدير فرع" }[r] || r);
 
   function notConfigured() {
     V().innerHTML = `<div class="card"><h2>النظام غير مربوط بعد</h2>
@@ -59,6 +100,7 @@
   /* ─────────── تسجيل الدخول ─────────── */
   function loginScreen() {
     $("#who").innerHTML = "";
+    nav(null);
     V().innerHTML = `<div class="card" style="margin-top:22px">
       <h2>تسجيل الدخول</h2><p class="sub">استخدم البريد وكلمة المرور اللذين زوّدتك بهما الإدارة.</p>
       <label class="fl">البريد الإلكتروني</label>
@@ -89,6 +131,9 @@
   /* ─────────── الشاشة الرئيسية ─────────── */
   async function home() {
     S = null;
+    nav("nvToday");
+    V().innerHTML = skeleton(3);
+
     const today = businessDate();
     const isStaff = ME.role === "admin" || ME.role === "area";
     const myBranch = CAT.branches.find(b => b.id === ME.branch_id);
@@ -104,25 +149,39 @@
     const { data: openF } = await sb.from("findings")
       .select("id", { count: "exact", head: false }).eq("status", "open");
     const openN = (openF || []).length;
+    navBadge(openN);
 
-    let html = `<nav class="tabs">
-      <button aria-selected="true">اليوم</button>
-      <button onclick="APP.findings()">الملاحظات<span class="c">${openN || ""}</span></button>
-      ${isStaff ? '<button onclick="location.href=\'admin.html\'">اللوحة</button>' : ""}
-    </nav>`;
+    /* ── البطاقة الافتتاحية ── */
+    const shifts = myBranch ? (myBranch.shifts || ["open", "mid", "close"]) : [];
+    const recOf = sh => done.find(d => myBranch && d.branch_id === myBranch.id
+      && d.shift === sh && d.template_key === sh && d.status === "submitted");
+    const doneN = shifts.filter(sh => recOf(sh)).length;
+    const hr = +new Intl.DateTimeFormat("en-US", { timeZone: C.TZ, hour: "numeric", hour12: false })
+      .format(new Date());
+    const greet = hr < 12 ? "صباح الخير" : hr < 17 ? "طاب يومك" : "مساء الخير";
+
+    let html = `<div class="hero"><div class="hl">
+      <div class="greet">${greet}، ${esc((ME.full_name || "").split(" ")[0])}</div>
+      <h2>${esc(myBranch ? myBranch.name_ar : C.company)}</h2>
+      <div class="date">${esc(window.SI.fmtDate(today))}</div></div>`;
+    if (shifts.length) {
+      html += `<div class="ring">${ring(doneN / shifts.length, 66, 7, "#fff", "rgba(255,255,255,.26)")}
+        <div class="rt">${doneN}<span style="opacity:.7">/${shifts.length}</span></div></div>`;
+    }
+    html += `</div>`;
 
     /* ── مدير الفرع: ورديات اليوم ── */
     if (myBranch) {
-      const shifts = myBranch.shifts || ["open", "mid", "close"];
-      html += `<div class="card"><h2>${esc(myBranch.name_ar)}</h2>
-        <p class="sub">${esc(window.SI.fmtDate(today))} — تشييك الورديات</p>`;
+      const remain = shifts.length - doneN;
+      html += `<div class="card"><h2>ورديات اليوم</h2>
+        <p class="sub">${remain ? `باقي ${remain} من ${shifts.length} — التشييك يبدأ من داخل الفرع.`
+          : "اكتملت ورديات اليوم. عمل ممتاز."}</p>`;
       shifts.forEach(sh => {
-        const rec = done.find(d => d.branch_id === myBranch.id && d.shift === sh
-          && d.template_key === sh && d.status === "submitted");
+        const rec = recOf(sh);
         html += `<div class="shift ${rec ? "done" : ""}">
           <div class="ic">${rec ? "✓" : SHIFT_AR[sh][0]}</div>
           <div class="t"><b>تشييك ${SHIFT_AR[sh]}</b><span>${rec
-            ? `${rec.score}٪ — ${esc(rec.user_name)} — ${fmtTime(rec.submitted_at)}`
+            ? `${rec.score}٪ · ${esc(rec.user_name)} · ${fmtTime(rec.submitted_at)}`
             : "لم يُنفَّذ بعد"}</span></div>
           ${rec ? `<button class="btn g sm" onclick="APP.report('${rec.id}')">التقرير</button>`
             : `<button class="btn p sm" onclick="APP.start('${sh}','${myBranch.id}','${sh}')">ابدأ</button>`}
@@ -131,11 +190,11 @@
       html += `</div>`;
     }
 
-    /* ── المشرف والإدارة: زيارة أي فرع ── */
+    /* ── QA & Training والإدارة: زيارة أي فرع ── */
     if (isStaff) {
       const groups = {};
       CAT.branches.forEach(b => (groups[b.brand_code] = groups[b.brand_code] || []).push(b));
-      html += `<div class="card"><h2>زيارة مشرف</h2>
+      html += `<div class="card"><h2>زيارة QA &amp; Training</h2>
         <p class="sub">التدقيق الأسبوعي الكامل — ٤٥ بنداً بأوزان.</p>
         <label class="fl">الموقع</label>
         <select id="vb"><option value="">— اختر الفرع —</option>` +
@@ -155,13 +214,14 @@
         }).join("");
         return `<tr><td>${esc(b.name_ar)}</td>${cells}</tr>`;
       }).join("");
-      html += `<div class="card"><h2>ورديات اليوم</h2>
+      html += `<div class="card"><h2>التزام الفروع اليوم</h2>
         <p class="sub">ما نفّذته الفروع حتى الآن.</p>
         <div class="tw"><table><thead><tr><th>الموقع</th>
         <th>الفتح</th><th>الذروة</th><th>الإغلاق</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
     }
 
-    html += `<div class="row"><button class="btn g" onclick="APP.logout()">خروج</button></div>`;
+    html += `<div class="row" style="margin-top:6px"><button class="btn g"
+      onclick="APP.logout()">تسجيل الخروج</button></div>`;
     V().innerHTML = html;
   }
   const bandCls = b => b === "green" ? "g" : b === "amber" ? "a" : b === "red" ? "r" : "n";
@@ -228,30 +288,76 @@
     const tpl = CAT.templates.find(t => t.key === templateKey);
     const secs = itemsFor(CAT, templateKey, branch.brand_code);
     const saved = draft.load(insp.id) || {};
-    S = { insp, branch, tpl, secs, shift, pos, answers: saved, sending: false };
+    S = { insp, branch, tpl, secs, shift, pos, answers: saved, sending: false, sec: 0 };
     runner();
   }
 
   /* ─────────── شاشة التشييك ─────────── */
+  /* حالة كل محور — تُستخدم في شريط المحاور */
+  function secStat(i) {
+    const items = S.secs[i].items;
+    const d = items.filter(it => S.answers[it.code] && "value" in S.answers[it.code]).length;
+    return { done: d, total: items.length, full: d === items.length };
+  }
+
+  function secnavHTML() {
+    if (S.secs.length < 2) return "";
+    return `<div class="secnav" id="secnav">` + S.secs.map((s, i) => {
+      const st = secStat(i);
+      return `<button aria-selected="${i === S.sec}" class="${st.full ? "full" : ""}"
+        onclick="APP.goSec(${i})">${esc(s.name_ar)}<span class="n" dir="ltr">${st.done}/${st.total}</span></button>`;
+    }).join("") + `</div>`;
+  }
+
+  /* شريط الإرسال الثابت — زره الأساسي يتغيّر حسب الموضع والاكتمال */
+  function sbarHTML(r) {
+    const last = S.sec === S.secs.length - 1;
+    const allDone = r.total > 0 && r.done === r.total;
+    return `<button class="btn g" onclick="APP.home()">حفظ لاحقاً</button>` +
+      ((allDone || last)
+        ? `<button class="btn p" id="send" onclick="APP.submit()">إنهاء وإرسال</button>`
+        : `<button class="btn p" id="send" onclick="APP.goSec(${S.sec + 1})">المحور التالي</button>`);
+  }
+
   function runner() {
+    if (!(S.sec >= 0 && S.sec < S.secs.length)) S.sec = 0;
+    nav(false);                                   // الشريط السفلي يفسح مكانه لشريط الإرسال
     const r = localScore(S.secs, S.answers, S.tpl.weighted, S.branch.target_pct);
+    const sec = S.secs[S.sec];
+
     V().innerHTML =
-      `<div class="prog"><div class="bar"><i style="width:${r.total ? r.done / r.total * 100 : 0}%"></i></div>
+      `<div class="prog">
+        <div class="bar"><i style="width:${r.total ? r.done / r.total * 100 : 0}%"></i></div>
         <div class="pmeta"><span>${r.done} من ${r.total} بنداً</span>
         <span><b style="color:${bandColor(r.done ? r.band : null)}">${r.done ? r.pct + "٪" : "—"}</b>
-        ${r.crit ? ' <span class="pill r">إنذار حرج</span>' : ""}</span></div></div>
-      <div class="card"><div style="font-size:12.5px;color:var(--ink-3)">
+        ${r.crit ? ' <span class="pill r">إنذار حرج</span>' : ""}</span></div></div>` +
+      secnavHTML() +
+      `<div class="card" style="padding:13px 15px;margin-bottom:11px">
+        <div style="font-size:12.5px;color:var(--ink-3);line-height:1.65">
         ${esc(S.branch.name_ar)} · ${esc(S.tpl.name_ar)}${S.shift ? " · " + SHIFT_AR[S.shift] : ""}
         · ${esc(window.SI.fmtDate(S.insp.business_date))}</div>
-        <div style="font-size:11.5px;color:var(--ink-3);margin-top:3px">
-        الموقع مؤكَّد — دقة ${S.pos.accuracy} م${S.branch.lat != null
-          ? ` · على بعد ${distanceM(S.pos, S.branch)} م من الفرع` : ""}</div></div>` +
-      S.secs.map(sec => `<div class="card"><div class="sec-h">${esc(sec.name_ar)}${
-        S.tpl.weighted ? " · وزن " + sec.weight : ""}</div>${
-        sec.items.map(qHTML).join("")}</div>`).join("") +
-      `<div id="err" class="banner bad hide"></div>
-       <div class="row"><button class="btn g" onclick="APP.home()">حفظ ومتابعة لاحقاً</button>
-       <button class="btn p" id="send" onclick="APP.submit()">إنهاء وإرسال</button></div>`;
+        <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">
+        الموقع مؤكَّد — دقة <span dir="ltr">${S.pos.accuracy}</span> م${S.branch.lat != null
+          ? ` · على بعد <span dir="ltr">${distanceM(S.pos, S.branch)}</span> م من الفرع` : ""}</div></div>
+      <div class="card"><div class="sec-h">${esc(sec.name_ar)}${
+        S.tpl.weighted ? " · وزن " + sec.weight : ""}</div>${sec.items.map(qHTML).join("")}</div>
+      <div id="err" class="banner bad hide"></div>` +
+      (S.secs.length > 1 ? `<div class="row">
+        <button class="btn g" ${S.sec === 0 ? "disabled" : ""}
+          onclick="APP.goSec(${S.sec - 1})">← المحور السابق</button>
+        <button class="btn g" ${S.sec === S.secs.length - 1 ? "disabled" : ""}
+          onclick="APP.goSec(${S.sec + 1})">المحور التالي →</button></div>` : "") +
+      `<div class="sbar">${sbarHTML(r)}</div>`;
+
+    /* اجعل المحور الحالي مرئياً داخل الشريط */
+    const nb = document.querySelector('.secnav button[aria-selected=true]');
+    if (nb) nb.scrollIntoView({ block: "nearest", inline: "center" });
+  }
+
+  function goSec(i) {
+    if (!S || i < 0 || i >= S.secs.length) return;
+    S.sec = i; tap(); runner();
+    scrollTo({ top: 0, behavior: "smooth" });
   }
   const bandColor = b => b === "green" ? "var(--ok)" : b === "amber" ? "var(--warn)"
     : b === "red" ? "var(--bad)" : "var(--ink-3)";
@@ -293,7 +399,7 @@
 
   function setV(code, v) {
     const a = S.answers[code] = S.answers[code] || {};
-    a.value = v;
+    a.value = v; tap();
     const it = S.secs.flatMap(s => s.items).find(x => x.code === code);
     if ((v === 0 || v === 1) && !a.due) {
       const d = new Date(S.insp.business_date + "T12:00:00Z");
@@ -318,6 +424,19 @@
     p.querySelector(".pmeta").innerHTML =
       `<span>${r.done} من ${r.total} بنداً</span><span><b style="color:${bandColor(r.done ? r.band : null)}">${
         r.done ? r.pct + "٪" : "—"}</b>${r.crit ? ' <span class="pill r">إنذار حرج</span>' : ""}</span>`;
+
+    /* عدّادات المحاور */
+    const nv = document.querySelector(".secnav");
+    if (nv) nv.querySelectorAll("button").forEach((b, i) => {
+      const st = secStat(i);
+      const n = b.querySelector(".n");
+      if (n) n.textContent = st.done + "/" + st.total;
+      b.classList.toggle("full", st.full);
+    });
+
+    /* زر الإرسال قد يتغيّر عند اكتمال كل البنود */
+    const sb2 = document.querySelector(".sbar");
+    if (sb2 && !S.sending) sb2.innerHTML = sbarHTML(r);
   }
 
   /* ─────────── الصور ─────────── */
@@ -431,8 +550,13 @@
     }
   }
   function bad(msg, code) {
+    /* البند الناقص قد يكون في محور آخر — انتقل إليه أولاً */
+    const si = S.secs.findIndex(s => s.items.some(it => it.code === code));
+    if (si >= 0 && si !== S.sec) { S.sec = si; runner(); }
     const e = $("#err"); e.textContent = msg; e.classList.remove("hide");
-    const q = $("#q_" + code); if (q) q.scrollIntoView({ behavior: "smooth", block: "center" });
+    tap(28);
+    const q = $("#q_" + code);
+    (q || e).scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   function doneScreen(ins) {
@@ -440,19 +564,26 @@
     const txt = `تقرير ${S.tpl.name_ar}\n${S.branch.name_ar}\n` +
       `${window.SI.fmtDate(ins.business_date)}${S.shift ? " — " + SHIFT_AR[S.shift] : ""}\n` +
       `النتيجة: ${ins.score}٪${ins.critical_fails ? ` — ${ins.critical_fails} إخفاق حرج` : ""}\n${url}`;
-    V().innerHTML = `<div class="card" style="text-align:center;padding:24px 15px">
-      <div style="width:92px;height:92px;border-radius:50%;margin:0 auto 12px;display:flex;
-        align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;
-        background:${bandColor(ins.band)}">${ins.score}٪</div>
-      <h2>${esc(S.branch.name_ar)}</h2>
-      <p class="sub">${esc(S.tpl.name_ar)}${S.shift ? " — " + SHIFT_AR[S.shift] : ""} · ${
-        esc(window.SI.fmtDate(ins.business_date))}</p>
-      ${ins.critical_fails ? `<div class="banner bad">إنذار حرج — ${ins.critical_fails} بنداً حرجاً غير مطابق. أغلقه خلال ٢٤ ساعة.</div>` : ""}
-      <div style="font-size:12px;color:var(--ink-3)">موثّق من داخل الفرع — على بعد ${
-        ins.distance_m ?? "—"} متر · دقة ${ins.accuracy_m ?? "—"} م</div>
+    nav("nvToday");
+    const bc = bandColor(ins.band);
+    V().innerHTML = `<div class="card" style="text-align:center;padding:26px 16px">
+      <div class="done-ring">
+        ${ring(Math.max(0, Math.min(1, (+ins.score || 0) / 100)), 118, 10, bc, "var(--rule-2)")}
+        <div class="dv" dir="ltr"><b style="color:${bc}">${ins.score}<span
+          style="font-size:.5em;font-weight:700">٪</span></b><span dir="rtl">النتيجة</span></div>
+      </div>
+      <h2 style="font-size:19px">${esc(S.branch.name_ar)}</h2>
+      <p class="sub" style="margin-bottom:14px">${esc(S.tpl.name_ar)}${
+        S.shift ? " — " + SHIFT_AR[S.shift] : ""} · ${esc(window.SI.fmtDate(ins.business_date))}</p>
+      ${ins.critical_fails ? `<div class="banner bad" style="text-align:start">
+        <b>إنذار حرج</b> — <span dir="ltr">${ins.critical_fails}</span> بنداً حرجاً غير مطابق.
+        يجب إغلاقه خلال ٢٤ ساعة.</div>` : ""}
+      <div style="font-size:12px;color:var(--ink-3);line-height:1.8">موثّق من داخل الفرع —
+        على بعد <span dir="ltr">${ins.distance_m ?? "—"}</span> متر ·
+        دقة <span dir="ltr">${ins.accuracy_m ?? "—"}</span> م</div>
       <div class="row"><button class="btn g" onclick="APP.report('${ins.id}')">التقرير</button>
         <button class="btn p" onclick="APP.share(${JSON.stringify(txt).replace(/"/g, "&quot;")})">مشاركة</button></div>
-      <div class="row"><button class="btn g" onclick="APP.home()">رجوع</button></div></div>`;
+      <div class="row"><button class="btn g" onclick="APP.home()">رجوع للرئيسية</button></div></div>`;
   }
 
   async function share(text) {
@@ -464,7 +595,8 @@
 
   /* ─────────── الملاحظات ─────────── */
   async function findings() {
-    V().innerHTML = `<div class="card"><h2>جارٍ التحميل…</h2></div>`;
+    nav("nvFind");
+    V().innerHTML = skeleton(4);
     const { data, error } = await sb.from("findings")
       .select("*, branches(name_ar)").eq("status", "open")
       .order("due_date", { ascending: true }).limit(300);
@@ -483,12 +615,20 @@
           .map(u => `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt=""></a>`).join("")}</div>` : ""}
         <button class="btn g sm" onclick="APP.close('${f.id}')">أُغلقت</button></div>`;
     }));
-    V().innerHTML = `<nav class="tabs">
-        <button onclick="APP.home()">اليوم</button>
-        <button aria-selected="true">الملاحظات<span class="c">${rows.length}</span></button>
-      </nav><div class="card"><h2>الملاحظات المفتوحة</h2>
-      <p class="sub">مرتبة بتاريخ الاستحقاق. المتأخر بالأحمر.</p>
-      ${rows.length ? rows.join("") : '<div class="empty">لا ملاحظات مفتوحة.</div>'}</div>`;
+    navBadge(rows.length);
+    const late = (data || []).filter(f => f.due_date && f.due_date < today).length;
+    V().innerHTML = `<div class="card"><h2>الملاحظات المفتوحة</h2>
+      <p class="sub">${rows.length
+        ? `<span dir="ltr">${rows.length}</span> ملاحظة${late
+          ? ` · منها <b style="color:var(--bad)"><span dir="ltr">${late}</span> متأخرة</b>` : ""
+          } — مرتبة بتاريخ الاستحقاق.`
+        : "مرتبة بتاريخ الاستحقاق. المتأخر بالأحمر."}</p>
+      ${rows.length ? rows.join("") : `<div class="empty">
+        <div class="ei"><svg width="27" height="27" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6L9 17l-5-5"/></svg></div>
+        <div class="et">لا ملاحظات مفتوحة</div>
+        كل الملاحظات مُغلقة. أحسنت.</div>`}</div>`;
   }
 
   async function closeF(id) {
@@ -501,7 +641,7 @@
   /* ─────────── التصدير ─────────── */
   window.APP = {
     home, start, startVisit, setV, setF, pick, rmPhoto, submit, findings,
-    close: closeF, logout, report, share
+    close: closeF, logout, report, share, goSec
   };
 
   if ("serviceWorker" in navigator) {
