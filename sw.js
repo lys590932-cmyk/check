@@ -1,9 +1,11 @@
 /* عامل الخدمة — يجعل التطبيق يفتح ويعمل بلا إنترنت */
-const V = "si-v1.1.0";
+const V = "si-v1.2.0";
 const SHELL = [
   "./", "./index.html", "./admin.html", "./report.html",
   "./styles.css", "./config.js", "./lib.js", "./app.js", "./admin.js", "./report.js",
-  "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"
+  "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
+  /* شعارات العلامات — تُخزَّن ليعمل التطبيق والتقرير بلا إنترنت */
+  "./logo-sevenicons.png", "./brand-wahed.png", "./brand-shawarma.png", "./brand-karak.png"
 ];
 
 self.addEventListener("install", e => {

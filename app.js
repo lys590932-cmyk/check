@@ -37,6 +37,44 @@
   /* ─────────── إيقاع لمسي خفيف ─────────── */
   function tap(ms) { try { navigator.vibrate && navigator.vibrate(ms || 8); } catch (_) { } }
 
+  /* ═════════ هوية العلامة ═════════
+     التطبيق يأخذ لون علامة الفرع الذي يعمل عليه المستخدم.
+     مدير فرع «واحد» يرى تطبيقاً فيروزياً، ومدير «شاورما» يراه أحمر —
+     ونفس الكود ونفس الملفات. الإدارة و QA & Training يريان لون المجموعة. */
+  const hex2rgb = h => {
+    h = String(h || "").replace("#", "");
+    if (h.length === 3) h = h.split("").map(c => c + c).join("");
+    const n = parseInt(h || "0b5f4e", 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const rgb2hex = a => "#" + a.map(v =>
+    Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+  const mix = (a, b, t) => rgb2hex(hex2rgb(a).map((v, i) => v + (hex2rgb(b)[i] - v) * t));
+
+  function brandOf(branch) {
+    const map = C.BRANDS || {};
+    return (branch && map[branch.brand_code]) || C.BRAND_FALLBACK ||
+      { color: "#0B5F4E", dark: "#063B30", logo: "" };
+  }
+
+  function applyBrand(branch) {
+    const b = brandOf(branch);
+    const dark = document.documentElement.getAttribute("data-theme") === "dark" ||
+      matchMedia("(prefers-color-scheme:dark)").matches;
+    const r = document.documentElement.style;
+    r.setProperty("--accent", b.color);
+    r.setProperty("--accent-2", mix(b.color, "#ffffff", .3));
+    r.setProperty("--brand-dark", b.dark || mix(b.color, "#000000", .35));
+    r.setProperty("--wash", mix(b.color, dark ? "#0b1412" : "#ffffff", dark ? .82 : .88));
+    /* لمسة لون خفيفة جداً على الخلفية تربط الشاشة بالعلامة بلا إزعاج */
+    r.setProperty("--ground", mix(b.color, dark ? "#0b1412" : "#eef2f0", dark ? .94 : .955));
+    const rgb = hex2rgb(b.color);
+    r.setProperty("--brand-glow", `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.28)`);
+    const mt = document.querySelector('meta[name=theme-color]');
+    if (mt) mt.setAttribute("content", b.dark || b.color);
+    return b;
+  }
+
   /* ─────────── حلقة تقدّم ─────────── */
   function ring(pct, size, sw, color, track) {
     const r = (size - sw) / 2, c = 2 * Math.PI * r;
@@ -85,6 +123,8 @@
     $("#who").innerHTML = `<b>${esc(ME.full_name)}</b>${roleAr(ME.role)}`;
     try { CAT = await catalog(); }
     catch (e) { return fail("تعذّر تحميل البيانات: " + (e.message || e)); }
+    /* لوّن التطبيق بهوية علامة الفرع قبل رسم أي شاشة */
+    applyBrand(CAT.branches.find(b => b.id === ME.branch_id));
     flushQueue();
     home();
   }
@@ -137,6 +177,7 @@
     const today = businessDate();
     const isStaff = ME.role === "admin" || ME.role === "area";
     const myBranch = CAT.branches.find(b => b.id === ME.branch_id);
+    applyBrand(myBranch);      // ارجع للون علامتك بعد أي زيارة لفرع آخر
 
     let done = [];
     try {
@@ -160,7 +201,10 @@
       .format(new Date());
     const greet = hr < 12 ? "صباح الخير" : hr < 17 ? "طاب يومك" : "مساء الخير";
 
-    let html = `<div class="hero"><div class="hl">
+    const brand = brandOf(myBranch);
+    let html = `<div class="hero">
+      ${brand.logo ? `<div class="blogo"><img src="${esc(brand.logo)}" alt=""></div>` : ""}
+      <div class="hl">
       <div class="greet">${greet}، ${esc((ME.full_name || "").split(" ")[0])}</div>
       <h2>${esc(myBranch ? myBranch.name_ar : C.company)}</h2>
       <div class="date">${esc(window.SI.fmtDate(today))}</div></div>`;
@@ -235,6 +279,7 @@
   /* ─────────── بدء تشييك ─────────── */
   async function start(templateKey, branchId, shift) {
     const branch = CAT.branches.find(b => b.id === branchId);
+    applyBrand(branch);        // المشرف الزائر يرى لون الفرع الذي يزوره
     V().innerHTML = `<div class="card"><h2>جارٍ تحديد موقعك…</h2>
       <p class="sub">التقرير لا يُقبل إلا من داخل ${esc(branch.name_ar)}.
       لو تأخر، اخرج لمكان مفتوح قليلاً.</p></div>`;
@@ -581,8 +626,8 @@
       <div style="font-size:12px;color:var(--ink-3);line-height:1.8">موثّق من داخل الفرع —
         على بعد <span dir="ltr">${ins.distance_m ?? "—"}</span> متر ·
         دقة <span dir="ltr">${ins.accuracy_m ?? "—"}</span> م</div>
-      <div class="row"><button class="btn g" onclick="APP.report('${ins.id}')">التقرير</button>
-        <button class="btn p" onclick="APP.share(${JSON.stringify(txt).replace(/"/g, "&quot;")})">مشاركة</button></div>
+      <div class="row"><button class="btn g" onclick="APP.report('${ins.id}')">عرض التقرير</button>
+        <button class="btn p" onclick="APP.sharePdf('${ins.id}')">📄 مشاركة PDF</button></div>
       <div class="row"><button class="btn g" onclick="APP.home()">رجوع للرئيسية</button></div></div>`;
   }
 
@@ -592,6 +637,8 @@
   }
 
   const report = id => location.href = "report.html?i=" + id;
+  /* يفتح صفحة التقرير ويبدأ توليد الـPDF ومشاركته تلقائياً */
+  const sharePdf = id => location.href = "report.html?i=" + id + "&share=1";
 
   /* ─────────── الملاحظات ─────────── */
   async function findings() {
@@ -641,7 +688,7 @@
   /* ─────────── التصدير ─────────── */
   window.APP = {
     home, start, startVisit, setV, setF, pick, rmPhoto, submit, findings,
-    close: closeF, logout, report, share, goSec
+    close: closeF, logout, report, share, goSec, sharePdf
   };
 
   if ("serviceWorker" in navigator) {

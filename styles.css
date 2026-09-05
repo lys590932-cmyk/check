@@ -268,16 +268,29 @@ body.app .card{border-radius:var(--r-lg);padding:17px;margin-bottom:13px;
 body.app .card>h2{font-size:16.5px;font-weight:800;letter-spacing:-.01em}
 body.app .banner{border-radius:var(--r-md);padding:13px 14px;font-size:13px}
 
-/* ── البطاقة الافتتاحية ── */
+/* ── البطاقة الافتتاحية — تأخذ لون علامة الفرع ── */
 .hero{position:relative;overflow:hidden;color:#fff;border-radius:var(--r-lg);
-  padding:19px 18px;margin-bottom:14px;box-shadow:var(--e3);
-  background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%)}
+  padding:17px 18px 19px;margin-bottom:14px;
+  box-shadow:0 10px 28px var(--brand-glow,rgba(13,26,23,.16));
+  background:linear-gradient(138deg,var(--brand-dark,#063b30) 0%,
+    var(--accent) 62%,var(--accent-2) 128%)}
 .hero::after{content:"";position:absolute;inset-inline-end:-46px;top:-46px;
   width:168px;height:168px;border-radius:50%;background:rgba(255,255,255,.09)}
 .hero .hl{position:relative;z-index:1}
 .hero .greet{font-size:12.5px;opacity:.86;font-weight:500}
 .hero h2{font-size:21px;font-weight:900;margin:2px 0 3px;letter-spacing:-.015em;color:#fff}
 .hero .date{font-size:12px;opacity:.82}
+
+/* شعار العلامة — شريحة بيضاء تعمل مع أي شعار مهما كانت خلفيته */
+.hero .blogo{position:relative;z-index:1;width:42px;height:42px;border-radius:12px;
+  background:#fff;display:flex;align-items:center;justify-content:center;
+  margin-bottom:10px;overflow:hidden;box-shadow:0 3px 10px rgba(0,0,0,.16)}
+.hero .blogo img{width:100%;height:100%;object-fit:contain;padding:3px}
+
+/* شارة العلامة في رأس الصفحة */
+.brandtag{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;
+  color:var(--accent);letter-spacing:.02em}
+.brandtag i{width:8px;height:8px;border-radius:3px;background:var(--accent);display:block}
 .hero .ring{position:absolute;inset-inline-end:18px;top:50%;transform:translateY(-50%);
   z-index:1;width:66px;height:66px}
 .hero .ring svg{transform:rotate(-90deg)}
