@@ -169,19 +169,50 @@
     const BAND_HEX = { green: "#1a7a3c", amber: "#a86209", red: "#a32222" };
     const bandHex = b => BAND_HEX[b] || "#6d817a";
 
+    /* رمز QR للتحقق — يفتح نسخة التقرير الحيّة على الإنترنت */
+    function qrDataUrl(text, cell) {
+      try {
+        const q = qrcode(0, "M");
+        q.addData(text); q.make();
+        return q.createDataURL(cell || 4, 0);
+      } catch (_) { return ""; }
+    }
+
+    /* قوس النتيجة — أوضح من دائرة مصمتة لأنه يُظهر البُعد عن ١٠٠ */
+    function gauge(pct, size, color) {
+      const sw = size * .11, r = (size - sw) / 2, c = 2 * Math.PI * r;
+      const off = c * (1 - Math.max(0, Math.min(1, (pct || 0) / 100)));
+      return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"
+        style="transform:rotate(-90deg)">
+        <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#e6ece9" stroke-width="${sw}"/>
+        <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+          stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>`;
+    }
+
+    const gap = Math.round(((+ins.score || 0) - (+ins.branches.target_pct || 0)) * 10) / 10;
+    const openIssues = issues.length;
+    const critN = ins.critical_fails || 0;
+
     function pdfDoc() {
       const S = `font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif`;
       const secRows = Object.keys(secs).map(s => {
         const p = secScore(secs[s]);
         const b = p == null ? "n" : p >= ins.branches.target_pct ? "green"
           : p >= ins.branches.target_pct - 10 ? "amber" : "red";
+        const tgt = +ins.branches.target_pct || 0;
         return `<tr>
-          <td style="padding:7px 4px;border-bottom:1px solid #eef2f0">${esc(s)}</td>
-          <td style="padding:7px 4px;border-bottom:1px solid #eef2f0;width:210px">
-            <div style="height:9px;background:#eef2f0;border-radius:99px;overflow:hidden">
-              <div style="height:100%;width:${p || 0}%;background:${bandHex(b)}"></div></div></td>
-          <td style="padding:7px 4px;border-bottom:1px solid #eef2f0;width:52px;text-align:left;
-            font-weight:700;direction:ltr">${p == null ? "—" : p}</td></tr>`;
+          <td style="padding:8px 4px;border-bottom:1px solid #eef2f0;font-size:12px">${esc(s)}</td>
+          <td style="padding:8px 4px;border-bottom:1px solid #eef2f0;width:230px">
+            <div style="position:relative;height:11px;background:#eef2f0;border-radius:99px">
+              <div style="height:100%;width:${p || 0}%;background:${bandHex(b)};
+                border-radius:99px"></div>
+              <!-- علامة المستهدف: تُظهر بُعد كل محور عن الهدف بنظرة -->
+              <div style="position:absolute;top:-3px;bottom:-3px;inset-inline-start:${tgt}%;
+                width:2px;background:#0d1a17;opacity:.55"></div>
+            </div></td>
+          <td style="padding:8px 4px;border-bottom:1px solid #eef2f0;width:56px;text-align:left;
+            font-weight:800;direction:ltr;font-size:12.5px;color:${bandHex(b)}">${
+              p == null ? "—" : p}</td></tr>`;
       }).join("");
 
       const meta = [
@@ -246,44 +277,81 @@
       return `<div style="${S};width:794px;background:#fff;color:#0d1a17;direction:rtl">
 
         <!-- ترويسة -->
-        <section class="blk" style="padding:0 0 14px">
-          <div style="height:9px;background:linear-gradient(90deg,${BR.dark},${BR.color})"></div>
-          <div style="padding:18px 46px 0;display:flex;align-items:center;
+        <section class="blk" style="padding:0 0 16px">
+          <div style="height:7px;background:linear-gradient(90deg,${BR.dark},${BR.color})"></div>
+          <div style="padding:20px 46px 0;display:flex;align-items:flex-start;
             justify-content:space-between;gap:16px">
-            <div style="display:flex;align-items:center;gap:12px">
-              ${BR.logo ? `<div style="width:56px;height:56px;border-radius:12px;background:#fff;
+            <div style="display:flex;align-items:center;gap:13px">
+              ${BR.logo ? `<div style="width:60px;height:60px;border-radius:14px;background:#fff;
                 border:1px solid #e6ece9;display:flex;align-items:center;justify-content:center;
                 overflow:hidden"><img src="${esc(BR.logo)}" style="width:100%;height:100%;
                 object-fit:contain;padding:3px"></div>` : ""}
-              <div><div style="font-size:17px;font-weight:800">${esc(ins.branches.name_ar)}</div>
-                <div style="font-size:11.5px;color:#6d817a">${esc(C.company)} · تقرير تشييك ميداني</div></div>
+              <div><div style="font-size:19px;font-weight:800;letter-spacing:-.01em">${
+                esc(ins.branches.name_ar)}</div>
+                <div style="font-size:11.5px;color:#6d817a;margin-top:2px">${esc(C.company)}
+                  · <span dir="ltr">${esc(ins.branches.code || "")}</span></div></div>
             </div>
-            <img src="logo-sevenicons.png" style="height:42px;object-fit:contain">
+            <div style="text-align:left">
+              <img src="logo-sevenicons.png" style="height:40px;object-fit:contain;display:block;
+                margin-inline-start:auto">
+              <div style="font-size:9.5px;color:#8b9a95;margin-top:5px;direction:ltr">
+                REF ${esc(String(ins.id).slice(0, 8).toUpperCase())}</div>
+            </div>
+          </div>
+          <div style="margin:15px 46px 0;padding:11px 16px;border-radius:10px;
+            background:linear-gradient(100deg,${BR.dark},${BR.color});color:#fff;
+            display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <div style="font-size:15px;font-weight:800">${esc(ins.templates.name_ar)}${
+              ins.shift ? " — تشييك " + SHIFT_AR[ins.shift] : ""}</div>
+            <div style="font-size:12px;opacity:.92">${esc(fmtDate(ins.business_date))}</div>
           </div>
         </section>
 
-        <!-- العنوان والنتيجة -->
+        <!-- النتيجة والمؤشرات -->
         <section class="blk" style="padding:0 46px 16px">
-          <div style="display:flex;align-items:center;gap:18px;background:#f6f9f7;
-            border:1px solid #e6ece9;border-radius:12px;padding:15px 17px">
-            <div style="flex:0 0 auto;width:86px;height:86px;border-radius:50%;
-              background:${bandHex(ins.band)};color:#fff;display:flex;flex-direction:column;
-              align-items:center;justify-content:center">
-              <div style="font-size:22px;font-weight:800;direction:ltr">${n1(ins.score)}</div>
-              <div style="font-size:10px;opacity:.9">من ١٠٠</div></div>
-            <div style="flex:1">
-              <div style="font-size:15px;font-weight:800">${esc(ins.templates.name_ar)}${
-                ins.shift ? " — تشييك " + SHIFT_AR[ins.shift] : ""}</div>
-              <div style="font-size:12px;color:#3d514b;margin-top:3px">${esc(fmtDate(ins.business_date))}</div>
-              <div style="font-size:12px;margin-top:6px">الحالة:
-                <b style="color:${bandHex(ins.band)}">${BAND_AR[ins.band] || "—"}</b>
-                · المستهدف <span dir="ltr">${n1(ins.branches.target_pct)}٪</span></div>
+          <div style="display:flex;align-items:center;gap:20px;background:#f6f9f7;
+            border:1px solid #e6ece9;border-radius:12px;padding:16px 18px">
+            <div style="flex:0 0 auto;position:relative;width:104px;height:104px">
+              ${gauge(+ins.score || 0, 104, bandHex(ins.band))}
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;
+                align-items:center;justify-content:center">
+                <div style="font-size:25px;font-weight:800;direction:ltr;line-height:1;
+                  color:${bandHex(ins.band)}">${n1(ins.score)}</div>
+                <div style="font-size:9.5px;color:#6d817a;margin-top:3px">من ١٠٠</div></div>
+            </div>
+            <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
+              <div style="background:#fff;border:1px solid #e6ece9;border-radius:9px;padding:9px 11px">
+                <div style="font-size:10px;color:#6d817a">الحالة</div>
+                <div style="font-size:14px;font-weight:800;color:${bandHex(ins.band)};margin-top:2px">${
+                  BAND_AR[ins.band] || "—"}</div></div>
+              <div style="background:#fff;border:1px solid #e6ece9;border-radius:9px;padding:9px 11px">
+                <div style="font-size:10px;color:#6d817a">المستهدف</div>
+                <div style="font-size:14px;font-weight:800;margin-top:2px;direction:ltr">${
+                  n1(ins.branches.target_pct)}٪</div></div>
+              <div style="background:#fff;border:1px solid #e6ece9;border-radius:9px;padding:9px 11px">
+                <div style="font-size:10px;color:#6d817a">الفارق</div>
+                <div style="font-size:14px;font-weight:800;margin-top:2px;direction:ltr;
+                  color:${gap >= 0 ? "#1a7a3c" : "#a32222"}">${gap >= 0 ? "+" : ""}${gap}</div></div>
+              <div style="background:#fff;border:1px solid #e6ece9;border-radius:9px;padding:9px 11px">
+                <div style="font-size:10px;color:#6d817a">البنود</div>
+                <div style="font-size:14px;font-weight:800;margin-top:2px;direction:ltr">${
+                  ins.items_done}/${ins.items_total}</div></div>
+              <div style="background:#fff;border:1px solid #e6ece9;border-radius:9px;padding:9px 11px">
+                <div style="font-size:10px;color:#6d817a">الملاحظات</div>
+                <div style="font-size:14px;font-weight:800;margin-top:2px;direction:ltr;
+                  color:${openIssues ? "#a86209" : "#1a7a3c"}">${openIssues}</div></div>
+              <div style="background:#fff;border:1px solid ${critN ? "#a32222" : "#e6ece9"};
+                border-radius:9px;padding:9px 11px">
+                <div style="font-size:10px;color:#6d817a">إخفاق حرج</div>
+                <div style="font-size:14px;font-weight:800;margin-top:2px;direction:ltr;
+                  color:${critN ? "#a32222" : "#1a7a3c"}">${critN}</div></div>
             </div>
           </div>
-          ${ins.critical_fails ? `<div style="margin-top:10px;background:#f8dede;
-            border:1px solid #a32222;border-radius:9px;padding:10px 13px;font-size:12.5px">
-            <b style="color:#a32222">إنذار حرج</b> — <span dir="ltr">${ins.critical_fails}</span>
-            بنداً حرجاً غير مطابق. يجب إغلاقه خلال ٢٤ ساعة.</div>` : ""}
+          ${critN ? `<div style="margin-top:10px;background:#f8dede;
+            border:1px solid #a32222;border-radius:9px;padding:11px 14px;font-size:12.5px">
+            <b style="color:#a32222">إنذار حرج</b> — <span dir="ltr">${critN}</span>
+            بنداً حرجاً غير مطابق. القاعدة: أي بند حرج غير مطابق يجعل التقييم أحمر
+            مهما كانت النتيجة، ويجب إغلاقه خلال ٢٤ ساعة.</div>` : ""}
         </section>
 
         <!-- بيانات التوثيق -->
@@ -295,8 +363,10 @@
 
         <!-- أداء المحاور -->
         <section class="blk" style="padding:0 46px 16px">
-          <div style="font-size:13px;font-weight:800;margin-bottom:8px;
+          <div style="font-size:13px;font-weight:800;margin-bottom:3px;
             padding-inline-start:9px;border-inline-start:3px solid ${BR.color}">أداء المحاور</div>
+          <div style="font-size:10.5px;color:#8b9a95;margin:0 0 7px 12px">الخط الرأسي الداكن
+            = مستهدف الفرع <span dir="ltr">(${n1(ins.branches.target_pct)}٪)</span></div>
           <table style="width:100%;border-collapse:collapse;font-size:12px">${secRows}</table>
         </section>
 
@@ -325,15 +395,122 @@
             <div style="border-top:1px solid #b9c8c2;padding-top:7px;font-size:11.5px;color:#6d817a">
               توقيع مدير الفرع</div>
           </div>
-          <div style="margin-top:18px;padding-top:11px;border-top:1px solid #eef2f0;
-            font-size:10px;color:#8b9a95;line-height:1.85">
-            كل صورة في هذا التقرير مختومة داخل بكسلاتها بالتاريخ والوقت والإحداثيات لحظة التقاطها،
-            ولا يمكن رفعها من استوديو الجهاز.<br>
-            رقم التقرير <span dir="ltr">${esc(ins.id)}</span> ·
-            صدر في <span dir="ltr">${new Date().toLocaleString("ar-KW", { timeZone: C.TZ })}</span> ·
-            ${esc(C.company)}
+          <div style="margin-top:20px;padding-top:13px;border-top:1px solid #eef2f0;
+            display:flex;gap:16px;align-items:flex-start">
+            ${qrDataUrl(location.href.split("&share")[0], 3)
+              ? `<div style="flex:0 0 auto;text-align:center">
+                  <img src="${qrDataUrl(location.href.split("&share")[0], 3)}"
+                    style="width:82px;height:82px;display:block">
+                  <div style="font-size:8.5px;color:#8b9a95;margin-top:3px">امسح للتحقق</div>
+                </div>` : ""}
+            <div style="flex:1;font-size:10px;color:#8b9a95;line-height:1.9">
+              كل صورة في هذا التقرير مختومة داخل بكسلاتها بالتاريخ والوقت والإحداثيات لحظة
+              التقاطها، ولا يمكن رفعها من استوديو الجهاز. والنتيجة محسوبة على خادم قاعدة
+              البيانات لا في المتصفح، فلا يمكن تعديلها من جهة المستخدم.<br>
+              رقم التقرير <span dir="ltr">${esc(ins.id)}</span><br>
+              صدر في <span dir="ltr">${new Date().toLocaleString("ar-KW", { timeZone: C.TZ })}</span>
+              · ${esc(C.company)}
+            </div>
           </div>
         </section>
+      </div>`;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       بطاقة الواتساب — 1080×1350
+       ───────────────────────────────────────────────────────────
+       ملف PDF يظهر في الواتساب كأيقونة ملف مغلقة، لا يراها أحد
+       إلا إذا ضغط عليها. الصورة تظهر داخل المحادثة فوراً.
+       فنرسل الاثنين: الصورة تُقرأ في ثانية، والـPDF للتفاصيل والأرشفة.
+       ═══════════════════════════════════════════════════════════ */
+    function cardDoc() {
+      const top = issues.slice(0, 4);
+      const secList = Object.keys(secs).slice(0, 6).map(s => {
+        const p = secScore(secs[s]);
+        const b = p == null ? "n" : p >= ins.branches.target_pct ? "green"
+          : p >= ins.branches.target_pct - 10 ? "amber" : "red";
+        return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:13px">
+          <div style="flex:0 0 300px;font-size:26px;font-weight:600;overflow:hidden;
+            text-overflow:ellipsis;white-space:nowrap">${esc(s)}</div>
+          <div style="flex:1;height:16px;background:rgba(255,255,255,.16);border-radius:99px">
+            <div style="height:100%;width:${p || 0}%;background:${bandHex(b)};border-radius:99px"></div></div>
+          <div style="flex:0 0 74px;text-align:left;font-size:26px;font-weight:800;
+            direction:ltr">${p == null ? "—" : p}</div></div>`;
+      }).join("");
+
+      return `<div style="width:1080px;height:1350px;position:relative;overflow:hidden;
+        background:linear-gradient(160deg,${BR.dark} 0%,${BR.color} 78%,${BR.color} 100%);
+        color:#fff;font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;direction:rtl">
+
+        <div style="position:absolute;inset-inline-end:-160px;top:-160px;width:620px;height:620px;
+          border-radius:50%;background:rgba(255,255,255,.07)"></div>
+
+        <div style="position:relative;padding:56px 60px 0;display:flex;
+          justify-content:space-between;align-items:flex-start">
+          <div style="display:flex;align-items:center;gap:20px">
+            ${BR.logo ? `<div style="width:104px;height:104px;border-radius:26px;background:#fff;
+              display:flex;align-items:center;justify-content:center;overflow:hidden">
+              <img src="${esc(BR.logo)}" style="width:100%;height:100%;object-fit:contain;padding:7px"></div>` : ""}
+            <div><div style="font-size:44px;font-weight:900;letter-spacing:-.02em">${
+              esc(ins.branches.name_ar)}</div>
+              <div style="font-size:24px;opacity:.85;margin-top:4px">${esc(C.company)}</div></div>
+          </div>
+          <div style="background:#fff;border-radius:20px;padding:12px 16px">
+            <img src="logo-sevenicons.png" style="height:52px;object-fit:contain;display:block"></div>
+        </div>
+
+        <div style="position:relative;margin:44px 60px 0;background:rgba(255,255,255,.13);
+          border:1px solid rgba(255,255,255,.22);border-radius:30px;padding:34px 38px;
+          display:flex;align-items:center;gap:36px">
+          <div style="flex:0 0 auto;width:224px;height:224px;border-radius:50%;background:#fff;
+            display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div style="font-size:82px;font-weight:900;direction:ltr;line-height:1;
+              color:${bandHex(ins.band)}">${n1(ins.score)}</div>
+            <div style="font-size:24px;color:#6d817a;margin-top:6px">من ١٠٠</div></div>
+          <div style="flex:1">
+            <div style="font-size:36px;font-weight:800;line-height:1.3">${
+              esc(ins.templates.name_ar)}${ins.shift ? "<br>تشييك " + SHIFT_AR[ins.shift] : ""}</div>
+            <div style="font-size:26px;opacity:.88;margin-top:10px">${esc(fmtDate(ins.business_date))}</div>
+            <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
+              <span style="background:${bandHex(ins.band)};border-radius:99px;padding:8px 20px;
+                font-size:24px;font-weight:800">${BAND_AR[ins.band] || "—"}</span>
+              <span style="background:rgba(255,255,255,.18);border-radius:99px;padding:8px 20px;
+                font-size:24px">المستهدف <span dir="ltr">${n1(ins.branches.target_pct)}</span></span>
+              ${critN ? `<span style="background:#a32222;border-radius:99px;padding:8px 20px;
+                font-size:24px;font-weight:800"><span dir="ltr">${critN}</span> إخفاق حرج</span>` : ""}
+            </div>
+          </div>
+        </div>
+
+        <div style="position:relative;margin:34px 60px 0">
+          <div style="font-size:25px;font-weight:800;opacity:.8;margin-bottom:16px">أداء المحاور</div>
+          ${secList}
+        </div>
+
+        <div style="position:relative;margin:26px 60px 0">
+          ${top.length ? `<div style="font-size:25px;font-weight:800;opacity:.8;margin-bottom:14px">
+            أبرز الملاحظات <span dir="ltr">(${openIssues})</span></div>` +
+            top.map(a => `<div style="display:flex;gap:13px;align-items:flex-start;
+              margin-bottom:11px;font-size:25px;line-height:1.45">
+              <span style="flex:0 0 auto;width:13px;height:13px;border-radius:50%;margin-top:9px;
+                background:${a.value === 0 ? "#ff8080" : "#ffd280"}"></span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${
+                esc(a.items ? a.items.title_ar : a.item_code)}</span></div>`).join("") +
+            (openIssues > top.length ? `<div style="font-size:23px;opacity:.7;margin-top:8px">
+              و<span dir="ltr">${openIssues - top.length}</span> ملاحظة أخرى في التقرير الكامل</div>` : "")
+          : `<div style="background:rgba(255,255,255,.14);border-radius:20px;padding:26px;
+              font-size:28px;font-weight:700;text-align:center">لا ملاحظات — كل البنود مطابقة ✓</div>`}
+        </div>
+
+        <div style="position:absolute;inset-inline:60px;bottom:44px;display:flex;
+          justify-content:space-between;align-items:flex-end;
+          border-top:1px solid rgba(255,255,255,.2);padding-top:22px">
+          <div style="font-size:21px;opacity:.8;line-height:1.6">
+            نفّذه ${esc(ins.user_name)}<br>
+            موثّق من داخل الفرع · دقة <span dir="ltr">${ins.accuracy_m ?? "—"}</span> م</div>
+          <div style="font-size:20px;opacity:.7;direction:ltr">REF ${
+            esc(String(ins.id).slice(0, 8).toUpperCase())}</div>
+        </div>
       </div>`;
     }
 
@@ -391,8 +568,33 @@
         }
       }
 
+      /* أرقام الصفحات — بأرقام لاتينية لأن خط jsPDF الافتراضي لا يرسم العربية */
+      const np = pdf.getNumberOfPages();
+      for (let i = 1; i <= np; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8); pdf.setTextColor(150, 150, 150);
+        pdf.text(`${i} / ${np}`, PW / 2, PH - 6, { align: "center" });
+      }
+
       stage.innerHTML = "";
       return pdf.output("blob");
+    }
+
+    /* صورة البطاقة — ما يظهر داخل محادثة الواتساب */
+    async function makeCardBlob() {
+      const stage = document.getElementById("pdfstage");
+      stage.innerHTML = cardDoc();
+      wait(true, "تجهيز بطاقة المشاركة");
+      await Promise.all(Array.from(stage.querySelectorAll("img")).map(img =>
+        img.complete && img.naturalWidth ? Promise.resolve()
+          : new Promise(res => { img.onload = img.onerror = res; setTimeout(res, 9000); })));
+      await new Promise(r => setTimeout(r, 100));
+      const cv = await html2canvas(stage.firstElementChild, {
+        scale: 1, useCORS: true, backgroundColor: null, logging: false,
+        width: 1080, height: 1350, windowWidth: 1080
+      });
+      stage.innerHTML = "";
+      return new Promise(res => cv.toBlob(res, "image/jpeg", 0.92));
     }
 
     const pdfName = () => `تقرير-${(ins.branches.name_ar || "").replace(/\s+/g, "-")}` +
@@ -427,9 +629,53 @@
       } finally { btn.disabled = false; wait(false); }
     };
 
+    /* ── المشاركة الكاملة: صورة تظهر في المحادثة + PDF للتفاصيل ── */
+    const dl = (blob, name) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    };
+    const cardName = () => pdfName().replace(/\.pdf$/, "") + ".jpg";
+
+    document.getElementById("shareAllBtn").onclick = async () => {
+      const btn = document.getElementById("shareAllBtn");
+      btn.disabled = true;
+      try {
+        const [cardBlob, pdfBlob] = [await makeCardBlob(), await makePdfBlob()];
+        const files = [
+          new File([cardBlob], cardName(), { type: "image/jpeg" }),
+          new File([pdfBlob], pdfName(), { type: "application/pdf" })
+        ];
+        const cap = `${ins.branches.name_ar} · ${fmtDate(ins.business_date)}` +
+          `${ins.shift ? " — تشييك " + SHIFT_AR[ins.shift] : ""}\n` +
+          `النتيجة ${n1(ins.score)}٪ (المستهدف ${n1(ins.branches.target_pct)}٪)` +
+          `${critN ? `\n⚠️ ${critN} إخفاق حرج` : ""}`;
+
+        wait(true, "فتح قائمة المشاركة");
+        if (navigator.canShare && navigator.canShare({ files })) {
+          wait(false);
+          await navigator.share({ files, title: "تقرير تشييك — " + ins.branches.name_ar, text: cap });
+        } else if (navigator.canShare && navigator.canShare({ files: [files[0]] })) {
+          /* بعض الأجهزة تشارك ملفاً واحداً فقط — الصورة أولى بالظهور */
+          wait(false);
+          await navigator.share({ files: [files[0]], title: "تقرير تشييك", text: cap });
+          dl(pdfBlob, pdfName());
+        } else {
+          wait(false);
+          dl(cardBlob, cardName());
+          setTimeout(() => dl(pdfBlob, pdfName()), 700);
+        }
+      } catch (e) {
+        wait(false);
+        if (String(e && e.name) !== "AbortError")
+          alert("تعذّر تجهيز التقرير: " + (e && e.message ? e.message : e));
+      } finally { btn.disabled = false; wait(false); }
+    };
+
     /* المشاركة المباشرة من التطبيق: report.html?i=…&share=1 */
     if (new URLSearchParams(location.search).get("share") === "1") {
-      setTimeout(() => document.getElementById("sharePdfBtn").click(), 400);
+      setTimeout(() => document.getElementById("shareAllBtn").click(), 400);
     }
   }
   boot();

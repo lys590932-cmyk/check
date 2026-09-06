@@ -58,7 +58,8 @@
       <button class="btn g sm" onclick="history.length>1?history.back():location.href='index.html'">رجوع</button>
       <button class="btn g sm" onclick="window.print()">طباعة</button>
       <button class="btn g sm" id="shareTxtBtn">نص</button>
-      <button class="btn p sm" id="sharePdfBtn">📄 مشاركة PDF</button>
+      <button class="btn g sm" id="sharePdfBtn">📄 PDF</button>
+      <button class="btn p sm" id="shareAllBtn">مشاركة التقرير</button>
     </div>
   </div>
 </header>
@@ -80,6 +81,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="config.js"></script>
 <script src="lib.js"></script>
 <script src="report.js"></script>

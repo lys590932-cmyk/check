@@ -9,6 +9,17 @@
   const V = () => $("#view");
 
   let ME = null, CAT = null, S = null;   // S = جلسة التشييك الجارية
+  let INSTALL_EVT = null;                // حدث تثبيت التطبيق (أندرويد/كروم)
+
+  addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL_EVT = e; });
+  addEventListener("appinstalled", () => { INSTALL_EVT = null; });
+
+  /* تحذير قبل مغادرة تشييك جارٍ — الإجابات محفوظة لكن التنبيه يمنع الارتباك */
+  addEventListener("beforeunload", e => {
+    if (S && !S.sending && Object.keys(S.answers || {}).length) {
+      e.preventDefault(); e.returnValue = "";
+    }
+  });
 
   /* ─────────── حالة الشبكة ─────────── */
   function paintNet() {
@@ -107,6 +118,134 @@
     d.classList.toggle("hide", !n);
   }
 
+  /* ═════════ نافذة سفلية ═════════
+     بديل prompt/confirm النظامية — أكثر ما يكسر إحساس «التطبيق الحقيقي». */
+  function sheet(opt) {
+    return new Promise(resolve => {
+      const el = document.createElement("div");
+      el.className = "sheet";
+      const acts = (opt.actions || []).map((a, i) =>
+        `<button class="btn ${a.kind || "g"}" data-i="${i}">${esc(a.label)}</button>`).join("");
+      el.innerHTML = `<div class="scrim"></div><div class="panel" role="dialog" aria-modal="true">
+        <div class="grip"></div>
+        <h3>${esc(opt.title || "")}</h3>
+        ${opt.sub ? `<p class="sh">${esc(opt.sub)}</p>` : ""}
+        ${opt.body || ""}
+        <div class="row">${acts}</div></div>`;
+      document.body.appendChild(el);
+
+      const done = v => {
+        el.querySelector(".panel").style.animation = "slideUp .2s var(--ease) reverse both";
+        setTimeout(() => el.remove(), 190);
+        document.removeEventListener("keydown", onKey);
+        resolve(v);
+      };
+      const onKey = e => { if (e.key === "Escape") done(null); };
+      document.addEventListener("keydown", onKey);
+      el.querySelector(".scrim").onclick = () => done(null);
+      el.querySelectorAll(".row .btn").forEach(b => b.onclick = () => {
+        const a = opt.actions[+b.dataset.i];
+        tap();
+        done(a.value !== undefined ? a.value
+          : (opt.field ? (el.querySelector("#shField") || {}).value ?? "" : true));
+      });
+      const f = el.querySelector("#shField");
+      if (f) setTimeout(() => f.focus(), 120);
+    });
+  }
+
+  /* ═════════ عارض الصور ═════════ */
+  function lightbox(urls, start) {
+    if (!urls || !urls.length) return;
+    let i = Math.max(0, Math.min(start || 0, urls.length - 1));
+    const el = document.createElement("div");
+    el.className = "lbox";
+    el.innerHTML = `<div class="cnt"></div>
+      <button class="x" aria-label="إغلاق">✕</button><img alt="">
+      ${urls.length > 1 ? `<div class="nav">
+        <button data-d="-1">السابقة</button><button data-d="1">التالية</button></div>` : ""}`;
+    const img = el.querySelector("img"), cnt = el.querySelector(".cnt");
+    const draw = () => {
+      img.src = urls[i];
+      cnt.textContent = `${i + 1} / ${urls.length}`;
+      el.querySelectorAll(".nav button").forEach(b => {
+        b.disabled = (+b.dataset.d < 0 && i === 0) || (+b.dataset.d > 0 && i === urls.length - 1);
+      });
+    };
+    const close = () => { el.remove(); document.removeEventListener("keydown", onKey); };
+    const onKey = e => {
+      if (e.key === "Escape") close();
+      if (e.key === "ArrowRight" && i > 0) { i--; draw(); }
+      if (e.key === "ArrowLeft" && i < urls.length - 1) { i++; draw(); }
+    };
+    el.querySelector(".x").onclick = close;
+    el.onclick = e => { if (e.target === el) close(); };
+    el.querySelectorAll(".nav button").forEach(b => b.onclick = () => {
+      i = Math.max(0, Math.min(urls.length - 1, i + (+b.dataset.d))); tap(); draw();
+    });
+    /* سحب أفقي للتنقّل بين الصور */
+    let x0 = null;
+    el.addEventListener("touchstart", e => x0 = e.touches[0].clientX, { passive: true });
+    el.addEventListener("touchend", e => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) < 45) return;
+      const n = i + (dx > 0 ? -1 : 1);
+      if (n >= 0 && n < urls.length) { i = n; draw(); }
+    }, { passive: true });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(el); draw();
+  }
+
+  /* فتح أي صورة داخل التطبيق بالنقر — تفويض حدث واحد لكل الصور */
+  document.addEventListener("click", e => {
+    const im = e.target.closest(".ph img, .note .thumbs img");
+    if (!im) return;
+    e.preventDefault();
+    const box = im.closest(".thumbs");
+    const all = box ? Array.from(box.querySelectorAll("img")).map(x => x.src) : [im.src];
+    lightbox(all, all.indexOf(im.src));
+  });
+
+  /* ═════════ سحب للتحديث ═════════ */
+  (function pullToRefresh() {
+    let y0 = null, pulling = false, ind = null;
+    const TH = 78;
+    const make = () => {
+      ind = document.createElement("div");
+      ind.className = "ptr";
+      ind.innerHTML = "<i></i>";
+      ind.style.transform = "translateY(-46px)";
+      document.body.appendChild(ind);
+    };
+    addEventListener("touchstart", e => {
+      if (scrollY > 2 || document.querySelector(".sheet,.lbox")) return;
+      if (!ME || S) return;                       // لا نحدّث أثناء تشييك جارٍ
+      y0 = e.touches[0].clientY; pulling = true;
+      if (!ind) make();
+    }, { passive: true });
+    addEventListener("touchmove", e => {
+      if (!pulling || y0 == null) return;
+      const d = e.touches[0].clientY - y0;
+      if (d <= 0) return;
+      ind.style.transform = `translateY(${Math.min(d * .5, 62) - 46}px)`;
+    }, { passive: true });
+    addEventListener("touchend", async e => {
+      if (!pulling || y0 == null) { pulling = false; return; }
+      const d = e.changedTouches[0].clientY - y0;
+      pulling = false; y0 = null;
+      if (d > TH) {
+        ind.classList.add("on"); ind.style.transform = "translateY(14px)";
+        tap(12);
+        const on = document.querySelector('#nvFind[aria-selected="true"]');
+        try { await (on ? findings() : home()); } catch (_) { }
+        flushQueue();
+      }
+      ind.classList.remove("on");
+      ind.style.transform = "translateY(-46px)";
+    }, { passive: true });
+  })();
+
   /* رأس يلتصق عند التمرير */
   addEventListener("scroll", () => {
     const h = document.querySelector("header.top");
@@ -141,7 +280,11 @@
   function loginScreen() {
     $("#who").innerHTML = "";
     nav(null);
-    V().innerHTML = `<div class="card" style="margin-top:22px">
+    V().innerHTML = `<div style="text-align:center;margin:26px 0 4px">
+        <img src="logo-sevenicons.png" alt="سفن ايكونز"
+          style="height:76px;object-fit:contain;filter:drop-shadow(0 6px 16px rgba(13,26,23,.14))">
+      </div>
+      <div class="card" style="margin-top:12px">
       <h2>تسجيل الدخول</h2><p class="sub">استخدم البريد وكلمة المرور اللذين زوّدتك بهما الإدارة.</p>
       <label class="fl">البريد الإلكتروني</label>
       <input type="email" id="em" autocomplete="username" inputmode="email">
@@ -213,6 +356,56 @@
         <div class="rt">${doneN}<span style="opacity:.7">/${shifts.length}</span></div></div>`;
     }
     html += `</div>`;
+
+    /* ── تشييك لم يُرسَل: أهم شيء يراه المستخدم ──
+       الإجابات محفوظة محلياً، لكن بلا هذا الشريط يظن المستخدم أنها ضاعت
+       فيبدأ من الصفر ويعيد العمل كله. */
+    try {
+      const ids = draft.list();
+      if (ids.length) {
+        const { data: dr } = await sb.from("inspections")
+          .select("id,template_key,shift,branch_id,business_date,status")
+          .in("id", ids).eq("status", "draft").order("business_date", { ascending: false }).limit(1);
+        const d0 = (dr || [])[0];
+        if (d0) {
+          const db = CAT.branches.find(b => b.id === d0.branch_id);
+          const tp = CAT.templates.find(t => t.key === d0.template_key);
+          const nDone = Object.values(draft.load(d0.id) || {})
+            .filter(a => a && "value" in a).length;
+          html += `<div class="alertbar draft">
+            <div class="ico">↻</div>
+            <div class="txt">تشييك لم يُرسَل بعد
+              <small>${esc(tp ? tp.name_ar : d0.template_key)}${
+                d0.shift ? " — " + SHIFT_AR[d0.shift] : ""} · ${esc(db ? db.name_ar : "")}
+                · <span dir="ltr">${nDone}</span> بنداً مُجاباً محفوظاً</small></div>
+            <button onclick="APP.start('${d0.template_key}','${d0.branch_id}',${
+              d0.shift ? `'${d0.shift}'` : "null"})">أكمِل</button></div>`;
+        }
+      }
+    } catch (_) { }
+
+    /* ── صور بانتظار الشبكة ──
+       بدون هذا المؤشر يقفل المستخدم التطبيق ظاناً أن كل شيء رُفع. */
+    try {
+      const q = await idbAll();
+      if (q && q.length) {
+        html += `<div class="alertbar queue">
+          <div class="ico">☁</div>
+          <div class="txt"><span dir="ltr">${q.length}</span> صورة بانتظار الشبكة
+            <small>محفوظة على جهازك ولن تضيع — تُرفع تلقائياً عند عودة الاتصال</small></div>
+          ${navigator.onLine ? `<button onclick="APP.flush()">ارفعها الآن</button>` : ""}</div>`;
+      }
+    } catch (_) { }
+
+    /* ── دعوة تثبيت التطبيق ── */
+    if (INSTALL_EVT && !localStorage.getItem("si_no_install")) {
+      html += `<div class="alertbar install">
+        <div class="ico">↓</div>
+        <div class="txt">ثبّت التطبيق على شاشتك
+          <small>يفتح أسرع ويعمل بلا إنترنت</small></div>
+        <button onclick="APP.install()">تثبيت</button>
+        <button class="ghost" onclick="APP.noInstall()">لاحقاً</button></div>`;
+    }
 
     /* ── مدير الفرع: ورديات اليوم ── */
     if (myBranch) {
@@ -679,16 +872,39 @@
   }
 
   async function closeF(id) {
-    const note = prompt("ماذا نُفِّذ؟ (اختياري)") ?? "";
+    const note = await sheet({
+      title: "إغلاق الملاحظة",
+      sub: "اكتب ما نُفِّذ فعلاً. الوصف يبقى في سجل الملاحظة ويُراجَع لاحقاً.",
+      field: true,
+      body: `<label class="fl">الإجراء المنفَّذ (اختياري)</label>
+        <textarea id="shField" placeholder="مثال: استُدعيت الصيانة واستُبدل الثرموستات"></textarea>`,
+      actions: [{ label: "إلغاء", kind: "g", value: null }, { label: "تأكيد الإغلاق", kind: "p" }]
+    });
+    if (note === null) return;
     const { error } = await sb.rpc("fn_close_finding", { p_id: id, p_note: note || null });
     if (error) return toast(error.message, true);
-    toast("أُغلقت"); findings();
+    tap(20); toast("أُغلقت الملاحظة"); findings();
   }
 
   /* ─────────── التصدير ─────────── */
+  async function install() {
+    if (!INSTALL_EVT) return toast("افتح قائمة المتصفح واختر «تثبيت التطبيق»");
+    INSTALL_EVT.prompt();
+    try { await INSTALL_EVT.userChoice; } catch (_) { }
+    INSTALL_EVT = null; home();
+  }
+  function noInstall() { try { localStorage.setItem("si_no_install", "1"); } catch (_) { } home(); }
+  async function flush() {
+    toast("جارٍ رفع الصور…");
+    const r = await flushQueue();
+    toast(r.done ? `رُفعت ${r.done} صورة` : "لم تُرفع أي صورة — تحقق من الاتصال", !r.done);
+    home();
+  }
+
   window.APP = {
     home, start, startVisit, setV, setF, pick, rmPhoto, submit, findings,
-    close: closeF, logout, report, share, goSec, sharePdf
+    close: closeF, logout, report, share, goSec, sharePdf,
+    install, noInstall, flush, lightbox
   };
 
   if ("serviceWorker" in navigator) {

@@ -1,9 +1,10 @@
 /* عامل الخدمة — يجعل التطبيق يفتح ويعمل بلا إنترنت */
-const V = "si-v1.2.0";
+const V = "si-v1.4.0";
 const SHELL = [
   "./", "./index.html", "./admin.html", "./report.html",
   "./styles.css", "./config.js", "./lib.js", "./app.js", "./admin.js", "./report.js",
   "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
+  "./icon-512-maskable.png", "./apple-touch-icon.png",
   /* شعارات العلامات — تُخزَّن ليعمل التطبيق والتقرير بلا إنترنت */
   "./logo-sevenicons.png", "./brand-wahed.png", "./brand-shawarma.png", "./brand-karak.png"
 ];

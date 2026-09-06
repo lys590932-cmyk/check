@@ -425,4 +425,68 @@ body.app nav.tabs{display:none}
     border:1px solid var(--rule-2);border-bottom:0;box-shadow:var(--e3)}
   .sbar{left:50%;right:auto;transform:translateX(-50%);width:min(600px,100%)}
 }
-@media print{.bnav,.sbar,.secnav,.hero{display:none!important}}
+@media print{.bnav,.sbar,.secnav,.hero,.alertbar,.ptr{display:none!important}}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   ▓▓ مكوّنات التطبيقات الأصلية — v3
+   نوافذ سفلية · عارض صور · سحب للتحديث · أشرطة تنبيه
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── نافذة سفلية: بديل prompt/confirm النظامية ── */
+.sheet{position:fixed;inset:0;z-index:120;display:flex;align-items:flex-end;justify-content:center}
+.sheet .scrim{position:absolute;inset:0;background:rgba(8,20,17,.52);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);animation:fadeIn .22s}
+.sheet .panel{position:relative;width:100%;max-width:560px;background:var(--surface);
+  border-radius:24px 24px 0 0;padding:7px 18px calc(18px + env(safe-area-inset-bottom));
+  box-shadow:0 -12px 44px rgba(0,0,0,.24);animation:slideUp .32s var(--ease);
+  max-height:88vh;overflow-y:auto}
+.sheet .grip{width:42px;height:4px;border-radius:99px;background:var(--rule);margin:7px auto 15px}
+.sheet h3{font-size:16.5px;font-weight:800;margin:0 0 3px}
+.sheet .sh{font-size:12.5px;color:var(--ink-3);margin:0 0 15px;line-height:1.6}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* ── عارض الصور بملء الشاشة ── */
+.lbox{position:fixed;inset:0;z-index:130;background:rgba(4,10,9,.95);display:flex;
+  align-items:center;justify-content:center;animation:fadeIn .2s}
+.lbox img{max-width:96vw;max-height:78vh;border-radius:9px;object-fit:contain;
+  animation:zoomIn .26s var(--ease)}
+@keyframes zoomIn{from{transform:scale(.93);opacity:0}to{transform:none;opacity:1}}
+.lbox .x{position:absolute;top:calc(12px + env(safe-area-inset-top));inset-inline-end:14px;
+  width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.16);
+  color:#fff;font-size:23px;cursor:pointer;line-height:1}
+.lbox .cnt{position:absolute;top:calc(22px + env(safe-area-inset-top));inset-inline-start:18px;
+  color:#fff;font-size:13px;opacity:.75;direction:ltr}
+.lbox .nav{position:absolute;bottom:calc(22px + env(safe-area-inset-bottom));display:flex;gap:9px}
+.lbox .nav button{border:0;background:rgba(255,255,255,.17);color:#fff;border-radius:99px;
+  padding:11px 20px;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer}
+.lbox .nav button:disabled{opacity:.3}
+
+/* ── سحب للتحديث ── */
+.ptr{position:fixed;inset-inline:0;top:0;display:flex;justify-content:center;
+  pointer-events:none;z-index:55;transition:transform .18s var(--ease)}
+.ptr i{display:block;width:34px;height:34px;border-radius:50%;background:var(--surface);
+  box-shadow:var(--e2);border:2.5px solid var(--rule-2);border-top-color:var(--accent)}
+.ptr.on i{animation:spin360 .7s linear infinite}
+@keyframes spin360{to{transform:rotate(360deg)}}
+
+/* ── أشرطة تنبيه فوق المحتوى ── */
+.alertbar{display:flex;align-items:center;gap:11px;border-radius:var(--r-md);
+  padding:12px 13px;margin-bottom:11px;font-size:13px;font-weight:600}
+.alertbar .ico{flex:0 0 auto;width:34px;height:34px;border-radius:11px;display:flex;
+  align-items:center;justify-content:center;font-size:17px}
+.alertbar .txt{flex:1;line-height:1.45;min-width:0}
+.alertbar .txt small{display:block;font-weight:500;opacity:.82;font-size:11.5px;margin-top:2px}
+.alertbar button{flex:0 0 auto;border:0;border-radius:9px;padding:10px 15px;font-weight:800;
+  font-size:13px;cursor:pointer;font-family:inherit;min-height:40px}
+.alertbar.draft{background:var(--wash);color:var(--accent)}
+.alertbar.draft .ico,.alertbar.draft button{background:var(--accent);color:var(--on-accent)}
+.alertbar.queue{background:var(--warn-w);color:var(--warn)}
+.alertbar.queue .ico{background:var(--warn);color:#fff}
+.alertbar.install{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--rule-2)}
+.alertbar.install .ico,.alertbar.install button{background:var(--accent);color:var(--on-accent)}
+.alertbar .ghost{background:transparent;color:inherit;opacity:.6;padding:10px 8px;font-weight:600}
+
+/* الصور المصغّرة قابلة للنقر */
+body.app .ph img,.note .thumbs img{cursor:zoom-in}
