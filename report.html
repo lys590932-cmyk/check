@@ -47,6 +47,13 @@
   @keyframes sp{to{transform:rotate(360deg)}}
   #pdfwait .t{font-weight:800;font-size:14.5px}
   #pdfwait .s{font-size:12px;color:var(--ink-3);margin-top:4px}
+  #pdfwait .pbar{height:5px;border-radius:99px;background:var(--rule-2);
+    margin:13px 0 4px;overflow:hidden}
+  #pdfwait .pbar i{display:block;height:100%;width:0;border-radius:99px;
+    background:var(--accent);transition:width .3s ease}
+  #pdfCancel{margin-top:12px;background:none;border:0;color:var(--ink-3);
+    font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+    text-decoration:underline;padding:6px 10px}
 
   /* لوحة «جاهز للمشاركة» — زرها هو اللمسة التي يقبلها النظام */
   .rdy{position:fixed;inset-inline:0;bottom:0;z-index:150;
@@ -119,7 +126,9 @@
 <div id="pdfwait" class="hide">
   <div class="box"><div class="spin"></div>
     <div class="t">جارٍ تجهيز التقرير…</div>
-    <div class="s" id="pdfStep">تحميل الصور</div></div>
+    <div class="s" id="pdfStep">تحميل الصور</div>
+    <div class="pbar"><i id="pdfBar"></i></div>
+    <button id="pdfCancel">إلغاء</button></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>

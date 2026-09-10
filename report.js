@@ -616,12 +616,23 @@
                      `'Segoe UI',Tahoma,Arial,sans-serif`;
     let FONT_CSS;                       // undefined = لم يُحاول · "" = فشل · نص = جاهز
 
+    /* أي انتظار بلا مهلة = تطبيق متجمّد. كل جلب هنا محدود بزمن. */
+    const withTimeout = (p, ms, label) => Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT:" + (label || ""))), ms))
+    ]);
+    const fetchT = (u, ms) => withTimeout(fetch(u), ms || 7000, u);
+
+    /* يمنح المتصفح فرصة لرسم الشاشة — بدونه يبدو التطبيق معلّقاً
+       حتى لو كان يعمل، لأن الرسم يحجز الخيط الرئيسي بالكامل. */
+    const breathe = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
     async function arabicFontCss(){
       if (FONT_CSS !== undefined) return FONT_CSS;
       FONT_CSS = "";
       try{
         const src = "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap";
-        const css = await (await fetch(src)).text();
+        const css = await (await fetchT(src, 6000)).text();
 
         /* نأخذ كتل @font-face التي تغطي النطاق العربي فقط —
            تضمين اللاتينية والسيريلية يضخّم الحجم بلا فائدة. */
@@ -630,17 +641,20 @@
           .filter(b => /U\+0[67]/i.test(b) || !/unicode-range/i.test(b));
 
         const out = [];
-        for (const b of blocks){
+        for (const b of blocks.slice(0, 3)){          /* ثلاثة أوزان تكفي */
           const m = b.match(/url\((https:[^)]+\.woff2)\)/);
           if (!m) continue;
-          const buf = await (await fetch(m[1])).arrayBuffer();
+          const buf = await (await fetchT(m[1], 7000)).arrayBuffer();
           let bin = "", bytes = new Uint8Array(buf);
           for (let i = 0; i < bytes.length; i += 8192)
             bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
           out.push(b.replace(m[0], `url(data:font/woff2;base64,${btoa(bin)}) format('woff2')`));
+          await breathe();
         }
         FONT_CSS = out.join("\n");
       }catch(e){
+        /* فشل التضمين ليس خطأً قاتلاً — سلسلة الخطوط الاحتياطية
+           فيها خطوط عربية موجودة على الجهاز أصلاً. */
         console.warn("[pdf] تعذّر تضمين الخط — سنعتمد على خطوط النظام", e);
       }
       return FONT_CSS;
@@ -660,14 +674,14 @@
     /* لا نرسم قبل أن يكون الخط جاهزاً فعلاً في المستند الأصلي أيضاً */
     async function fontsReady(){
       try{
-        await arabicFontCss();
+        await withTimeout(arabicFontCss(), 16000, "font").catch(()=>{});
         if (document.fonts){
-          await Promise.all([
+          await withTimeout(Promise.all([
             document.fonts.load("400 14px 'IBM Plex Sans Arabic'", "تشييك"),
             document.fonts.load("700 14px 'IBM Plex Sans Arabic'", "تشييك"),
             document.fonts.load("900 14px 'Noto Kufi Arabic'", "تشييك")
-          ]).catch(()=>{});
-          await document.fonts.ready;
+          ]), 6000, "fontload").catch(()=>{});
+          await withTimeout(document.fonts.ready, 4000, "fontsready").catch(()=>{});
         }
       }catch(_){}
     }
@@ -844,10 +858,27 @@
 
     const waitEl = document.getElementById("pdfwait");
     const stepEl = document.getElementById("pdfStep");
-    const wait = (on, msg) => {
+    const barEl  = document.getElementById("pdfBar");
+    let CANCEL = false;
+
+    const wait = (on, msg, pct) => {
       waitEl.classList.toggle("hide", !on);
       if (msg) stepEl.textContent = msg;
+      if (barEl) barEl.style.width = pct == null ? "" : Math.round(pct * 100) + "%";
+      if (on === false) CANCEL = false;
     };
+
+    /* زر إلغاء — شاشة انتظار بلا مخرج أسوأ من الانتظار نفسه */
+    document.getElementById("pdfCancel").onclick = () => {
+      CANCEL = true;
+      wait(false);
+      const st = document.getElementById("pdfstage");
+      if (st) st.innerHTML = "";
+    };
+
+    /* الأجهزة الضعيفة تختنق عند scale 2 — نخفّضه تلقائياً.
+       الفرق في وضوح الـPDF طفيف، والفرق في احتمال التجمّد كبير. */
+    const SCALE = (navigator.deviceMemory && navigator.deviceMemory <= 4) ? 1.4 : 1.8;
 
     async function makePdfBlob() {
       const stage = document.getElementById("pdfstage");
@@ -855,26 +886,34 @@
 
       wait(true, "تجهيز الخط العربي");
       await fontsReady();
+      if (CANCEL) throw new Error("CANCELLED");
+
       wait(true, "تحميل الصور");
-      /* لا نلتقط قبل اكتمال تحميل كل صورة، وإلا خرجت مربعات فارغة */
+      /* لا نلتقط قبل اكتمال تحميل كل صورة، وإلا خرجت مربعات فارغة.
+         المهلة 6 ثوانٍ لكل صورة — الصورة التي لا تصل لا تُعطّل التقرير. */
       await Promise.all(Array.from(stage.querySelectorAll("img")).map(img =>
         img.complete && img.naturalWidth
           ? Promise.resolve()
-          : new Promise(res => { img.onload = img.onerror = res; setTimeout(res, 9000); })));
-      await new Promise(r => setTimeout(r, 120));
+          : new Promise(res => { img.onload = img.onerror = res; setTimeout(res, 6000); })));
+      await breathe();
+      if (CANCEL) throw new Error("CANCELLED");
 
-      wait(true, "رسم الصفحات");
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "p" });
       const PW = 210, PH = 297, M = 0;
       const blocks = Array.from(stage.querySelectorAll(".blk"));
-      let y = M, first = true;
+      let y = M, first = true, n = 0;
 
       for (const blk of blocks) {
-        const cv = await html2canvas(blk, {
-          scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false,
-          windowWidth: 794, width: 794, onclone: onCloneFix
-        });
+        n++;
+        wait(true, `رسم الصفحات — ${n} من ${blocks.length}`, n / blocks.length);
+        await breathe();                       /* دع الشاشة تُحدَّث قبل الرسم الثقيل */
+        if (CANCEL) throw new Error("CANCELLED");
+
+        const cv = await withTimeout(html2canvas(blk, {
+          scale: SCALE, useCORS: true, backgroundColor: "#ffffff", logging: false,
+          windowWidth: 794, width: 794, onclone: onCloneFix, imageTimeout: 6000
+        }), 30000, "canvas");
         const hMM = cv.height * PW / cv.width;
         const img = cv.toDataURL("image/jpeg", 0.92);
 
@@ -914,16 +953,18 @@
     async function makeCardBlob() {
       const stage = document.getElementById("pdfstage");
       stage.innerHTML = cardDoc();
-      wait(true, "تجهيز بطاقة المشاركة");
+      wait(true, "تجهيز بطاقة المشاركة", .15);
       await fontsReady();
+      if (CANCEL) throw new Error("CANCELLED");
       await Promise.all(Array.from(stage.querySelectorAll("img")).map(img =>
         img.complete && img.naturalWidth ? Promise.resolve()
-          : new Promise(res => { img.onload = img.onerror = res; setTimeout(res, 9000); })));
-      await new Promise(r => setTimeout(r, 100));
-      const cv = await html2canvas(stage.firstElementChild, {
+          : new Promise(res => { img.onload = img.onerror = res; setTimeout(res, 6000); })));
+      await breathe();
+      if (CANCEL) throw new Error("CANCELLED");
+      const cv = await withTimeout(html2canvas(stage.firstElementChild, {
         scale: 1, useCORS: true, backgroundColor: null, logging: false,
-        width: 1080, height: 1350, windowWidth: 1080, onclone: onCloneFix
-      });
+        width: 1080, height: 1350, windowWidth: 1080, onclone: onCloneFix, imageTimeout: 6000
+      }), 30000, "card");
       stage.innerHTML = "";
       return new Promise(res => cv.toBlob(res, "image/jpeg", 0.92));
     }
@@ -977,7 +1018,9 @@
 
     async function buildFiles(){
       if (READY) return READY;
+      CANCEL = false;
       const cardBlob = await makeCardBlob();
+      await breathe();
       const pdfBlob  = await makePdfBlob();
       READY = {
         cardBlob, pdfBlob, cap: caption(),
@@ -1040,12 +1083,18 @@
       const btn = document.getElementById("shareAllBtn");
       btn.disabled = true;
       try {
-        await buildFiles();
+        /* سقف زمني للعملية كلها — لا يبقى المستخدم أمام شاشة انتظار أبدية */
+        await withTimeout(buildFiles(), 90000, "build");
         wait(false);
         showReadyPanel();
       } catch (e) {
         wait(false);
-        alert("تعذّر تجهيز التقرير: " + (e && e.message ? e.message : e));
+        const m = String(e && e.message || e);
+        if (m === "CANCELLED") return;                 /* ألغى بنفسه */
+        alert(/^TIMEOUT/.test(m)
+          ? "تجهيز التقرير أخذ وقتاً أطول من المتوقع — غالباً بسبب ضعف الشبكة أو كثرة الصور.\n\n"
+            + "جرّب مرة أخرى على شبكة أفضل، أو استخدم زر «طباعة» للحصول على نسخة PDF مباشرة."
+          : "تعذّر تجهيز التقرير: " + m);
       } finally { btn.disabled = false; wait(false); }
     };
 
@@ -1054,8 +1103,14 @@
        ليست لمسة مستخدم وسيرفضها النظام. نعرض اللوحة وننتظر لمسته. */
     if (new URLSearchParams(location.search).get("share") === "1") {
       (async () => {
-        try { await buildFiles(); wait(false); showReadyPanel(); }
-        catch (e) { wait(false); }
+        try { await withTimeout(buildFiles(), 90000, "build"); wait(false); showReadyPanel(); }
+        catch (e) {
+          wait(false);
+          const m = String(e && e.message || e);
+          if (m === "CANCELLED") return;
+          /* لا نُزعج بنافذة تنبيه هنا — نترك أزرار الصفحة متاحة ليحاول بنفسه */
+          console.warn("[share] " + m);
+        }
       })();
     }
   }
