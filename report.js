@@ -35,6 +35,33 @@
       });
 
     const issues = (ans || []).filter(a => a.value === 0 || a.value === 1);
+
+    /* ═══════════════════════════════════════════════════════════
+       المقارنة بالزيارة السابقة
+       ───────────────────────────────────────────────────────────
+       رقم وحده لا يقول شيئاً: 84 قد تكون تحسّناً كبيراً أو تدهوراً.
+       والبند الذي تكرّر إخفاقه مرتين ليس ملاحظة — هو خلل لم يُعالَج،
+       وهذا ما يجب أن تراه الإدارة أولاً.
+       ═══════════════════════════════════════════════════════════ */
+    let PREV = null, REPEAT = new Set();
+    try{
+      const { data: pv } = await sb.from("inspections")
+        .select("id,score,business_date")
+        .eq("branch_id", ins.branch_id).eq("template_key", ins.template_key)
+        .eq("status", "submitted").lt("business_date", ins.business_date)
+        .order("business_date", { ascending: false }).limit(1);
+      PREV = (pv || [])[0] || null;
+      if (PREV){
+        const { data: pa } = await sb.from("answers")
+          .select("item_code,value").eq("inspection_id", PREV.id);
+        const bad = new Set((pa || []).filter(x => x.value === 0 || x.value === 1)
+          .map(x => x.item_code));
+        issues.forEach(a => { if (bad.has(a.item_code)) REPEAT.add(a.item_code); });
+      }
+    }catch(_){}
+
+    const delta = PREV && PREV.score != null && ins.score != null
+      ? Math.round((ins.score - PREV.score) * 10) / 10 : null;
     const urls = {};
     await Promise.all((ans || []).flatMap(a => (a.photos || []).map(async p => {
       urls[p] = await signedUrl(p, 7200);
@@ -85,6 +112,43 @@
         ${ins.critical_fails ? `<div class="banner bad" style="margin:0 0 12px">
           <b>إنذار حرج</b> — <span dir="ltr">${ins.critical_fails}</span> بنداً حرجاً غير مطابق.
           يجب إغلاقه خلال ٢٤ ساعة.</div>` : ""}
+
+        <!-- الخلاصة: ماذا تغيّر وما الذي يجب فعله الآن -->
+        <div class="sumry">
+          <div class="sm-row">
+            <div class="sm-c">
+              <span>مقارنة بالزيارة السابقة</span>
+              <b dir="ltr" style="color:${delta == null ? "var(--ink-3)"
+                : delta > 0 ? "var(--ok)" : delta < 0 ? "var(--bad)" : "var(--ink-2)"}">${
+                delta == null ? "—" : (delta > 0 ? "▲ +" : delta < 0 ? "▼ " : "= ") + delta}</b>
+              <small>${PREV ? esc(fmtDate(PREV.business_date)) + " · " + n1(PREV.score) + "٪"
+                : "لا زيارة سابقة"}</small>
+            </div>
+            <div class="sm-c">
+              <span>ملاحظات متكرّرة</span>
+              <b dir="ltr" style="color:${REPEAT.size ? "var(--bad)" : "var(--ok)"}">${REPEAT.size}</b>
+              <small>${REPEAT.size ? "لم تُعالَج منذ الزيارة السابقة" : "لا تكرار"}</small>
+            </div>
+            <div class="sm-c">
+              <span>الفارق عن المستهدف</span>
+              <b dir="ltr" style="color:${ins.score >= ins.branches.target_pct
+                ? "var(--ok)" : "var(--bad)"}">${
+                ins.score == null ? "—" : ((ins.score - ins.branches.target_pct) > 0 ? "+" : "") +
+                  (Math.round((ins.score - ins.branches.target_pct) * 10) / 10)}</b>
+              <small>المستهدف <span dir="ltr">${n1(ins.branches.target_pct)}٪</span></small>
+            </div>
+          </div>
+          <div class="sm-act">
+            <b>الأولوية الآن:</b> ${
+              ins.critical_fails
+                ? `إغلاق <span dir="ltr">${ins.critical_fails}</span> بنداً حرجاً خلال ٢٤ ساعة.`
+                : REPEAT.size
+                  ? `معالجة <span dir="ltr">${REPEAT.size}</span> ملاحظة متكرّرة — تكرارها يعني أن الإجراء السابق لم يُنفَّذ.`
+                  : issues.length
+                    ? `إغلاق <span dir="ltr">${issues.length}</span> ملاحظة قبل تاريخ استحقاقها.`
+                    : "لا إجراء مطلوب — كل البنود مطابقة."}
+          </div>
+        </div>
         <div class="meta">
           <div><div class="k">المنفِّذ</div><div class="v">${esc(ins.user_name)}</div></div>
           <div><div class="k">وقت الإرسال</div><div class="v">${ins.submitted_at ? esc(fmtTime(ins.submitted_at)) : "—"}</div></div>
@@ -124,13 +188,14 @@
             <div class="st"><span class="pill ${cls}">${t}</span></div>
             <div class="bd"><b>${esc(a.items ? a.items.title_ar : a.item_code)}</b>
               ${a.items && a.items.critical ? '<span class="chip cr">حرج</span>' : ""}
+              ${REPEAT.has(a.item_code) ? '<span class="chip rp">↻ متكرّر</span>' : ""}
               ${a.num_value != null ? `<span class="chip ph">${esc(a.items?.num_label || "قراءة")}: ${
                 a.num_value}${esc(a.items?.num_unit || "")}</span>` : ""}
               <p><b>الملاحظة:</b> ${esc(a.note || "—")}</p>
               <p><b>الإجراء:</b> ${esc(a.action || "—")} — ${esc(a.owner_name || "بلا مسؤول")}
                  · استحقاق ${esc(a.due_date || "—")}</p>
               ${shots.length ? `<div class="shots">${shots.map(u =>
-                `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="دليل مصوّر"></a>`).join("")}</div>` : ""}
+                `<img src="${u}" alt="دليل مصوّر" loading="lazy">`).join("")}</div>` : ""}
             </div></div>`;
         }).join("")}</div>` : `<div class="card"><h2>الملاحظات</h2>
         <div class="empty">لا ملاحظات — كل البنود مطابقة.</div></div>`}
@@ -146,7 +211,7 @@
               ${a.num_value != null ? `<span class="chip ph">${esc(a.items?.num_label || "قراءة")}: ${
                 a.num_value}${esc(a.items?.num_unit || "")}</span>` : ""}
               ${shots.length ? `<div class="shots">${shots.map(u =>
-                `<img src="${u}" alt="دليل مصوّر">`).join("")}</div>` : ""}
+                `<img src="${u}" alt="دليل مصوّر" loading="lazy">`).join("")}</div>` : ""}
               </div></div>`;
           }).join("")).join("")}
         <div class="sign">
@@ -536,6 +601,247 @@
       </div>`;
     }
 
+    /* ═══════════════════════════════════════════════════════════
+       تضمين الخط العربي داخل نسخة html2canvas
+       ───────────────────────────────────────────────────────────
+       html2canvas ينسخ العنصر إلى إطار معزول ثم يرسم النص هناك.
+       الخط المحمَّل من Google Fonts لا ينتقل مع النسخة، فيسقط
+       المتصفح إلى خط بديل لا يعرف وصل الحروف العربية — فتخرج
+       الكلمات مقطّعة الحروف ومعكوسة الترتيب.
+
+       الحل: نجلب ملف الخط ونحوّله base64 ونحقنه داخل النسخة عبر
+       onclone، فيصبح الخط جزءاً من المستند المرسوم لا مرجعاً خارجياً.
+       ═══════════════════════════════════════════════════════════ */
+    const AR_STACK = `'IBM Plex Sans Arabic','Noto Naskh Arabic','Geeza Pro',` +
+                     `'Segoe UI',Tahoma,Arial,sans-serif`;
+    let FONT_CSS;                       // undefined = لم يُحاول · "" = فشل · نص = جاهز
+
+    async function arabicFontCss(){
+      if (FONT_CSS !== undefined) return FONT_CSS;
+      FONT_CSS = "";
+      try{
+        const src = "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap";
+        const css = await (await fetch(src)).text();
+
+        /* نأخذ كتل @font-face التي تغطي النطاق العربي فقط —
+           تضمين اللاتينية والسيريلية يضخّم الحجم بلا فائدة. */
+        const blocks = css.split("@font-face").slice(1)
+          .map(b => "@font-face" + b.slice(0, b.indexOf("}") + 1))
+          .filter(b => /U\+0[67]/i.test(b) || !/unicode-range/i.test(b));
+
+        const out = [];
+        for (const b of blocks){
+          const m = b.match(/url\((https:[^)]+\.woff2)\)/);
+          if (!m) continue;
+          const buf = await (await fetch(m[1])).arrayBuffer();
+          let bin = "", bytes = new Uint8Array(buf);
+          for (let i = 0; i < bytes.length; i += 8192)
+            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+          out.push(b.replace(m[0], `url(data:font/woff2;base64,${btoa(bin)}) format('woff2')`));
+        }
+        FONT_CSS = out.join("\n");
+      }catch(e){
+        console.warn("[pdf] تعذّر تضمين الخط — سنعتمد على خطوط النظام", e);
+      }
+      return FONT_CSS;
+    }
+
+    /* يُمرَّر لـ html2canvas: يحقن الخط ويوحّد الإعدادات داخل النسخة */
+    function onCloneFix(doc){
+      const st = doc.createElement("style");
+      st.textContent =
+        (FONT_CSS || "") +
+        `\n*{font-family:${AR_STACK} !important;letter-spacing:normal !important;` +
+        `word-spacing:normal !important;text-rendering:auto !important}` +
+        `\nbody{margin:0}`;
+      doc.head.appendChild(st);
+    }
+
+    /* لا نرسم قبل أن يكون الخط جاهزاً فعلاً في المستند الأصلي أيضاً */
+    async function fontsReady(){
+      try{
+        await arabicFontCss();
+        if (document.fonts){
+          await Promise.all([
+            document.fonts.load("400 14px 'IBM Plex Sans Arabic'", "تشييك"),
+            document.fonts.load("700 14px 'IBM Plex Sans Arabic'", "تشييك"),
+            document.fonts.load("900 14px 'Noto Kufi Arabic'", "تشييك")
+          ]).catch(()=>{});
+          await document.fonts.ready;
+        }
+      }catch(_){}
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       عارض الصور — تكبير وتصغير وسحب
+       ───────────────────────────────────────────────────────────
+       الدليل المصوّر هو جوهر التقرير: صورة ثلاجة أو ملصق تاريخ
+       بحجم 190 بكسل لا تُثبت شيئاً. هنا تُفتح بملء الشاشة وتُقرّب
+       حتى تُقرأ الأرقام على المقياس.
+       ═══════════════════════════════════════════════════════════ */
+    function zoomView(list, start){
+      if (!list || !list.length) return;
+      let i = Math.max(0, Math.min(start || 0, list.length - 1));
+      let s = 1, tx = 0, ty = 0;          /* التكبير والإزاحة */
+      const MIN = 1, MAX = 6;
+
+      const el = document.createElement("div");
+      el.className = "zv";
+      el.innerHTML = `
+        <div class="zv-bar">
+          <span class="zv-cap"></span>
+          <span class="zv-cnt"></span>
+          <button class="zv-x" aria-label="إغلاق">✕</button>
+        </div>
+        <div class="zv-stage"><img alt=""><div class="zv-hint">قرّب بإصبعين · انقر مرتين للتكبير</div></div>
+        <div class="zv-tools">
+          <button data-a="prev" aria-label="السابقة">›</button>
+          <button data-a="out"  aria-label="تصغير">−</button>
+          <button data-a="fit"  aria-label="ملء الشاشة">⤢</button>
+          <button data-a="in"   aria-label="تكبير">+</button>
+          <button data-a="next" aria-label="التالية">‹</button>
+        </div>`;
+      document.body.appendChild(el);
+      document.body.style.overflow = "hidden";
+
+      const img   = el.querySelector("img");
+      const stage = el.querySelector(".zv-stage");
+      const hint  = el.querySelector(".zv-hint");
+      const cnt   = el.querySelector(".zv-cnt");
+      const cap   = el.querySelector(".zv-cap");
+
+      const apply = (animate) => {
+        img.classList.toggle("anim", !!animate);
+        img.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+        el.querySelector('[data-a=out]').disabled = s <= MIN + .01;
+        el.querySelector('[data-a=in]').disabled  = s >= MAX - .01;
+        hint.style.opacity = s > 1.05 ? 0 : "";
+      };
+      const reset = (animate) => { s = 1; tx = ty = 0; apply(animate); };
+
+      const show = () => {
+        const it = list[i];
+        img.src = it.url;
+        cap.textContent = it.title || "";
+        cnt.textContent = list.length > 1 ? `${i + 1} / ${list.length}` : "";
+        el.querySelector('[data-a=prev]').disabled = i === 0;
+        el.querySelector('[data-a=next]').disabled = i === list.length - 1;
+        reset(false);
+      };
+
+      const zoomAt = (f, cx, cy) => {
+        const ns = Math.max(MIN, Math.min(MAX, s * f));
+        if (ns === s) return;
+        const r = stage.getBoundingClientRect();
+        /* أبقِ النقطة تحت الإصبع ثابتة أثناء التقريب */
+        const px = cx - r.left - r.width / 2, py = cy - r.top - r.height / 2;
+        tx = px - (px - tx) * (ns / s);
+        ty = py - (py - ty) * (ns / s);
+        s = ns;
+        if (s <= MIN + .01) { tx = ty = 0; }
+        apply(true);
+      };
+
+      const close = () => {
+        el.remove();
+        document.body.style.overflow = "";
+        document.removeEventListener("keydown", onKey);
+      };
+      const onKey = e => {
+        if (e.key === "Escape") close();
+        else if (e.key === "ArrowRight" && i > 0) { i--; show(); }
+        else if (e.key === "ArrowLeft" && i < list.length - 1) { i++; show(); }
+        else if (e.key === "+" || e.key === "=") zoomAt(1.4, innerWidth/2, innerHeight/2);
+        else if (e.key === "-") zoomAt(1/1.4, innerWidth/2, innerHeight/2);
+      };
+      document.addEventListener("keydown", onKey);
+      el.querySelector(".zv-x").onclick = close;
+
+      el.querySelectorAll(".zv-tools button").forEach(b => b.onclick = () => {
+        const a = b.dataset.a;
+        if (a === "in")   zoomAt(1.5, innerWidth/2, innerHeight/2);
+        if (a === "out")  zoomAt(1/1.5, innerWidth/2, innerHeight/2);
+        if (a === "fit")  reset(true);
+        if (a === "prev" && i > 0) { i--; show(); }
+        if (a === "next" && i < list.length - 1) { i++; show(); }
+      });
+
+      /* عجلة الفأرة على سطح المكتب */
+      stage.addEventListener("wheel", e => {
+        e.preventDefault();
+        zoomAt(e.deltaY < 0 ? 1.16 : 1/1.16, e.clientX, e.clientY);
+      }, { passive: false });
+
+      /* ── اللمس: سحب بإصبع · تقريب بإصبعين · نقرتان للتبديل ── */
+      let pts = new Map(), startD = 0, startS = 1, lastTap = 0, panFrom = null;
+      const dist = a => Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+      const mid  = a => ({ x:(a[0].x + a[1].x)/2, y:(a[0].y + a[1].y)/2 });
+
+      stage.addEventListener("pointerdown", e => {
+        stage.setPointerCapture(e.pointerId);
+        pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+        const a = [...pts.values()];
+        if (a.length === 2){ startD = dist(a); startS = s; }
+        else if (a.length === 1 && s > 1) panFrom = { x:e.clientX - tx, y:e.clientY - ty };
+      });
+
+      stage.addEventListener("pointermove", e => {
+        if (!pts.has(e.pointerId)) return;
+        pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+        const a = [...pts.values()];
+        if (a.length === 2 && startD){
+          const m = mid(a), ns = Math.max(MIN, Math.min(MAX, startS * (dist(a)/startD)));
+          const r = stage.getBoundingClientRect();
+          const px = m.x - r.left - r.width/2, py = m.y - r.top - r.height/2;
+          tx = px - (px - tx) * (ns/s); ty = py - (py - ty) * (ns/s); s = ns;
+          apply(false);
+        } else if (a.length === 1 && panFrom && s > 1){
+          tx = e.clientX - panFrom.x; ty = e.clientY - panFrom.y;
+          apply(false);
+        }
+      });
+
+      const up = e => {
+        pts.delete(e.pointerId);
+        if (pts.size < 2) startD = 0;
+        if (pts.size === 0){
+          panFrom = null;
+          if (s <= MIN + .01){ tx = ty = 0; apply(true); }
+        }
+      };
+      stage.addEventListener("pointerup", up);
+      stage.addEventListener("pointercancel", up);
+
+      /* نقرتان: تكبير/إرجاع — ونقرة واحدة على الخلفية تُغلق */
+      stage.addEventListener("click", e => {
+        const now = Date.now();
+        if (now - lastTap < 300){
+          lastTap = 0;
+          s > 1.05 ? reset(true) : zoomAt(2.6, e.clientX, e.clientY);
+          return;
+        }
+        lastTap = now;
+        setTimeout(() => {
+          if (lastTap && Date.now() - lastTap >= 290 && e.target === stage && s <= 1.05) close();
+        }, 310);
+      });
+
+      show();
+    }
+
+    /* أي صورة في التقرير تُفتح في العارض — مع كل صور نفس البند */
+    V().addEventListener("click", e => {
+      const im = e.target.closest(".shots img");
+      if (!im) return;
+      e.preventDefault(); e.stopPropagation();
+      const box = im.closest(".shots");
+      const all = Array.from(box.querySelectorAll("img")).map(x => ({
+        url: x.dataset.full || x.src,
+        title: box.closest(".it")?.querySelector(".bd b")?.textContent || ""
+      }));
+      zoomView(all, Array.from(box.querySelectorAll("img")).indexOf(im));
+    });
+
     const waitEl = document.getElementById("pdfwait");
     const stepEl = document.getElementById("pdfStep");
     const wait = (on, msg) => {
@@ -547,6 +853,8 @@
       const stage = document.getElementById("pdfstage");
       stage.innerHTML = pdfDoc();
 
+      wait(true, "تجهيز الخط العربي");
+      await fontsReady();
       wait(true, "تحميل الصور");
       /* لا نلتقط قبل اكتمال تحميل كل صورة، وإلا خرجت مربعات فارغة */
       await Promise.all(Array.from(stage.querySelectorAll("img")).map(img =>
@@ -565,7 +873,7 @@
       for (const blk of blocks) {
         const cv = await html2canvas(blk, {
           scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false,
-          windowWidth: 794, width: 794
+          windowWidth: 794, width: 794, onclone: onCloneFix
         });
         const hMM = cv.height * PW / cv.width;
         const img = cv.toDataURL("image/jpeg", 0.92);
@@ -607,13 +915,14 @@
       const stage = document.getElementById("pdfstage");
       stage.innerHTML = cardDoc();
       wait(true, "تجهيز بطاقة المشاركة");
+      await fontsReady();
       await Promise.all(Array.from(stage.querySelectorAll("img")).map(img =>
         img.complete && img.naturalWidth ? Promise.resolve()
           : new Promise(res => { img.onload = img.onerror = res; setTimeout(res, 9000); })));
       await new Promise(r => setTimeout(r, 100));
       const cv = await html2canvas(stage.firstElementChild, {
         scale: 1, useCORS: true, backgroundColor: null, logging: false,
-        width: 1080, height: 1350, windowWidth: 1080
+        width: 1080, height: 1350, windowWidth: 1080, onclone: onCloneFix
       });
       stage.innerHTML = "";
       return new Promise(res => cv.toBlob(res, "image/jpeg", 0.92));

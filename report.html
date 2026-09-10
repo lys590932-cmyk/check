@@ -47,6 +47,50 @@
   @keyframes sp{to{transform:rotate(360deg)}}
   #pdfwait .t{font-weight:800;font-size:14.5px}
   #pdfwait .s{font-size:12px;color:var(--ink-3);margin-top:4px}
+
+  /* لوحة «جاهز للمشاركة» — زرها هو اللمسة التي يقبلها النظام */
+  .rdy{position:fixed;inset-inline:0;bottom:0;z-index:150;
+    padding:13px 14px calc(13px + env(safe-area-inset-bottom));
+    background:var(--surface);border-top:1px solid var(--rule-2);
+    box-shadow:0 -10px 34px rgba(13,26,23,.16);
+    animation:rdyUp .32s cubic-bezier(.32,.72,0,1) both}
+  @keyframes rdyUp{from{transform:translateY(100%)}to{transform:none}}
+  .rdy-in{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+  .rdy-ic{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:var(--ok);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:900}
+  .rdy-t{flex:1;min-width:140px;font-size:14px;font-weight:800;line-height:1.4}
+  .rdy-t small{display:block;font-weight:500;font-size:11px;color:var(--ink-3);margin-top:2px}
+  .rdy .btn{flex:0 0 auto;padding:12px 20px;border-radius:10px;font-size:14px;min-height:46px}
+  .rdy .btn.g{padding:12px 15px}
+  @media (max-width:420px){ .rdy .btn.p{flex:1} }
+
+  /* ── عارض الصور بالتكبير ── */
+  .zv{position:fixed;inset:0;z-index:200;background:#05100e;display:flex;
+    flex-direction:column;touch-action:none;animation:zvIn .2s ease}
+  @keyframes zvIn{from{opacity:0}to{opacity:1}}
+  .zv-bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;color:#fff;
+    padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+    background:linear-gradient(180deg,rgba(0,0,0,.55),transparent)}
+  .zv-cnt{flex:1;font-size:13px;opacity:.85;direction:ltr}
+  .zv-cap{font-size:12.5px;opacity:.95;font-weight:700;max-width:62%;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .zv-x{width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.15);
+    color:#fff;font-size:20px;cursor:pointer;flex:0 0 auto}
+  .zv-stage{flex:1;position:relative;overflow:hidden;display:flex;
+    align-items:center;justify-content:center}
+  .zv-stage img{max-width:100%;max-height:100%;object-fit:contain;
+    transform-origin:center center;will-change:transform;user-select:none;-webkit-user-drag:none}
+  .zv-stage img.anim{transition:transform .22s cubic-bezier(.32,.72,0,1)}
+  .zv-tools{flex:0 0 auto;display:flex;justify-content:center;gap:8px;
+    padding:12px 14px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,rgba(0,0,0,.55),transparent)}
+  .zv-tools button{min-width:48px;height:44px;border-radius:12px;border:0;
+    background:rgba(255,255,255,.15);color:#fff;font-family:inherit;font-size:17px;
+    font-weight:800;cursor:pointer}
+  .zv-tools button:disabled{opacity:.28}
+  .zv-tools button:active{background:rgba(255,255,255,.3)}
+  .zv-hint{position:absolute;inset-inline:0;bottom:14px;text-align:center;color:#fff;
+    font-size:11.5px;opacity:.55;pointer-events:none}
 </style>
 </head>
 <body>

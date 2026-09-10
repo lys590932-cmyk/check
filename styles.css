@@ -638,6 +638,22 @@ body.rep .wrap{padding-bottom:40px}
 .rh-band{font-size:12.5px;font-weight:800;margin-top:4px}
 .rh-tgt{font-size:10.5px;opacity:.8;margin-top:3px}
 
+/* خلاصة التقرير — ماذا تغيّر وما الذي يُفعل الآن */
+.sumry{border:1px solid var(--rule-2);border-radius:var(--r-md);overflow:hidden;margin-bottom:14px}
+.sm-row{display:grid;grid-template-columns:repeat(3,1fr)}
+.sm-c{padding:12px 11px;text-align:center;border-inline-end:1px solid var(--rule-2)}
+.sm-c:last-child{border-inline-end:0}
+.sm-c span{display:block;font-size:10.5px;color:var(--ink-3);line-height:1.4}
+.sm-c b{display:block;font-size:19px;font-weight:900;margin:3px 0 2px;
+  font-variant-numeric:tabular-nums}
+.sm-c small{display:block;font-size:10px;color:var(--ink-3)}
+.sm-act{background:var(--wash);padding:11px 13px;font-size:12.5px;line-height:1.7;
+  border-top:1px solid var(--rule-2)}
+.sm-act b{color:var(--accent)}
+.chip.rp{background:var(--bad-w);color:var(--bad);font-weight:800}
+@media (max-width:400px){ .sm-row{grid-template-columns:1fr 1fr}
+  .sm-c:nth-child(3){grid-column:1/-1;border-inline-end:0;border-top:1px solid var(--rule-2)} }
+
 body.rep .card{border-radius:var(--r-lg);padding:17px;box-shadow:var(--e2);margin-bottom:12px}
 body.rep .card>h2{font-size:16px;font-weight:800}
 body.rep .it{padding:12px 0}
