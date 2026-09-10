@@ -68,20 +68,59 @@
     const late = rows.reduce((s, r) => s + (r.late_findings || 0), 0);
     const noV = rows.filter(r => !r.visits).length;
 
-    const kpi = (k, v, b) => `<div class="kpi ${b || ""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+    const kpi = (k, v, b, sub) => `<div class="kpi ${b || ""}"><div class="k">${k}</div>` +
+      `<div class="v" dir="ltr">${v}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
+
+    /* لون علامة كل فرع — يجعل الصف يُقرأ بالعين قبل قراءة الاسم */
+    const brandCol = id => {
+      const b = (CAT.branches || []).find(x => x.id === id);
+      const m = (C.BRANDS || {})[b && b.brand_code];
+      return (m && m.color) || "var(--accent)";
+    };
+
+    /* بطاقات الفروع — العرض على الجوال */
+    const cards = rows.length ? rows.map((r, i) => {
+      const p = r.visit_pct ?? r.shift_pct;
+      const b = bandOf(p, r.target_pct, r.critical_fails > 0);
+      const gap = p == null ? null : p - r.target_pct;
+      return `<div class="brow" style="--bc:${brandCol(r.branch_id)}"
+          onclick="AD.branchHist('${r.branch_id}')">
+        <div class="rk">${p == null ? "—" : i + 1}</div>
+        <div class="bd">
+          <div class="nm">${esc(r.name_ar)}
+            ${r.critical_fails ? `<span class="tag r">${r.critical_fails} حرج</span>` : ""}
+            ${r.late_findings ? `<span class="tag a">${r.late_findings} متأخرة</span>` : ""}
+            ${!r.visits ? `<span class="tag a">بلا زيارة</span>` : ""}</div>
+          <div class="meta">
+            <span>المستهدف <span dir="ltr">${n1(r.target_pct)}</span></span>
+            <span>الفارق <span dir="ltr" style="color:${gap == null ? "var(--ink-3)"
+              : gap >= 0 ? "var(--ok)" : "var(--bad)"};font-weight:800">${
+                gap == null ? "—" : (gap > 0 ? "+" : "") + gap.toFixed(1)}</span></span>
+            <span>ملاحظات <span dir="ltr">${r.open_findings || 0}</span></span>
+            <span>${r.last_check ? "آخر تشييك " + esc(r.last_check) : "لا تشييك بعد"}</span>
+          </div>
+          <div class="bar"><i style="width:${p || 0}%;background:${cvar(b)}"></i>
+            <u style="inset-inline-start:${r.target_pct || 0}%"></u></div>
+        </div>
+        <div class="sc"><b style="color:${cvar(b)}">${n1(p)}</b><span>من ١٠٠</span></div>
+        <button class="go" aria-label="السجل">‹</button>
+      </div>`;
+    }).join("") : `<div class="empty">لا بيانات بعد.</div>`;
 
     V().innerHTML = tabs() +
       `<div class="kpis">
-        ${kpi("متوسط ٢٨ يوماً", avg == null ? "—" : n1(avg), avg == null ? "" : (avg >= 90 ? "g" : avg >= 80 ? "a" : "r"))}
-        ${kpi("تحت المستهدف", below, below ? "r" : "g")}
-        ${kpi("إخفاقات حرجة", cf, cf ? "r" : "g")}
-        ${kpi("ملاحظات مفتوحة", open, open ? "a" : "g")}
-        ${kpi("منها متأخرة", late, late ? "r" : "g")}
-        ${kpi("بلا زيارة QA &amp; Training", noV, noV ? "a" : "g")}
+        ${kpi("متوسط ٢٨ يوماً", avg == null ? "—" : n1(avg),
+          avg == null ? "" : (avg >= 90 ? "g" : avg >= 80 ? "a" : "r"),
+          `${withScore.length} موقعاً مُقيَّماً`)}
+        ${kpi("تحت المستهدف", below, below ? "r" : "g", `من ${rows.length} موقعاً`)}
+        ${kpi("إخفاقات حرجة", cf, cf ? "r" : "g", cf ? "تُغلق خلال ٢٤ ساعة" : "لا شيء")}
+        ${kpi("ملاحظات مفتوحة", open, open ? "a" : "g", late ? `منها ${late} متأخرة` : "لا متأخرات")}
+        ${kpi("بلا زيارة QA &amp; Training", noV, noV ? "a" : "g", "خلال ٢٨ يوماً")}
       </div>
       <div class="card"><h2>الفروع مقابل المستهدف</h2>
-      <p class="sub">آخر ٢٨ يوماً. «الفارق» = النتيجة ناقص مستهدف الفرع.</p>
-      <div class="tw"><table><thead><tr>
+      <p class="sub">آخر ٢٨ يوماً · مرتّبة بالنتيجة · الخط الداكن على الشريط = مستهدف الفرع.</p>
+      <div class="adm-cards">${cards}</div>
+      <div class="adm-table"><div class="tw"><table><thead><tr>
         <th>#</th><th>الموقع</th><th>زيارة QA &amp; Training</th><th>الورديات</th><th>المستهدف</th>
         <th>الفارق</th><th></th><th>حرج</th><th>ملاحظات</th><th>آخر تشييك</th><th></th>
       </tr></thead><tbody>` +
@@ -105,7 +144,7 @@
           <td class="c noprint"><button class="btn g sm" onclick="AD.branchHist('${r.branch_id}')">السجل</button></td>
         </tr>`;
       }).join("") : `<tr><td colspan="11" class="empty">لا بيانات بعد.</td></tr>`) +
-      `</tbody></table></div>
+      `</tbody></table></div></div>
       <div class="row noprint"><button class="btn g" onclick="AD.exportCsv()">تصدير Excel</button>
         <button class="btn g" onclick="window.print()">طباعة / PDF</button>
         <button class="btn p" onclick="AD.shareSummary()">إرسال الملخص</button></div></div>

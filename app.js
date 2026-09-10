@@ -259,6 +259,7 @@
     if (C.SUPABASE_URL.includes("YOUR-PROJECT")) return notConfigured();
     ME = await me();
     if (!ME) return loginScreen();
+    document.body.classList.remove("login");
     $("#who").innerHTML = `<b>${esc(ME.full_name)}</b>${roleAr(ME.role)}`;
     try { CAT = await catalog(); }
     catch (e) { return fail("تعذّر تحميل البيانات: " + (e.message || e)); }
@@ -280,33 +281,82 @@
   function loginScreen() {
     $("#who").innerHTML = "";
     nav(null);
-    V().innerHTML = `<div style="text-align:center;margin:26px 0 4px">
-        <img src="logo-sevenicons.png" alt="سفن ايكونز"
-          style="height:76px;object-fit:contain;filter:drop-shadow(0 6px 16px rgba(13,26,23,.14))">
+    document.body.classList.add("login");
+    V().innerHTML = `<div class="lg">
+      <div class="lg-top">
+        <div class="lg-logo"><img src="logo-sevenicons.png" alt="سفن ايكونز"></div>
+        <h1 class="lg-name">${esc(C.company)}</h1>
+        <p class="lg-tag">نظام التشييك الميداني</p>
       </div>
-      <div class="card" style="margin-top:12px">
-      <h2>تسجيل الدخول</h2><p class="sub">استخدم البريد وكلمة المرور اللذين زوّدتك بهما الإدارة.</p>
-      <label class="fl">البريد الإلكتروني</label>
-      <input type="email" id="em" autocomplete="username" inputmode="email">
-      <label class="fl">كلمة المرور</label>
-      <input type="password" id="pw" autocomplete="current-password">
-      <div class="row"><button class="btn p" id="go">دخول</button></div>
-      <div id="lerr" class="banner bad hide" style="margin-top:11px"></div></div>`;
+
+      <div class="lg-card">
+        <h2>تسجيل الدخول</h2>
+        <p class="sub">استخدم البريد وكلمة المرور اللذين زوّدتك بهما الإدارة.</p>
+
+        <label class="fl" for="em">البريد الإلكتروني</label>
+        <div class="lg-f">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round"><rect x="2.5" y="4.5" width="19" height="15" rx="3"/>
+            <path d="M3 7l9 6 9-6"/></svg>
+          <input type="email" id="em" autocomplete="username" inputmode="email"
+            placeholder="name@sevenicons.com" dir="ltr">
+        </div>
+
+        <label class="fl" for="pw">كلمة المرور</label>
+        <div class="lg-f">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10" rx="2.5"/>
+            <path d="M8 10.5V7.8a4 4 0 018 0v2.7"/></svg>
+          <input type="password" id="pw" autocomplete="current-password" placeholder="••••••••">
+          <button type="button" class="lg-eye" id="eye" aria-label="إظهار كلمة المرور">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/>
+              <circle cx="12" cy="12" r="2.7"/></svg>
+          </button>
+        </div>
+
+        <div id="lerr" class="lg-err hide"></div>
+        <button class="btn p lg-go" id="go">دخول</button>
+      </div>
+
+      <p class="lg-foot">نسيت كلمة المرور؟ تواصل مع الإدارة لإعادة تعيينها.</p>
+    </div>`;
+
+    const eye = $("#eye"), pw = $("#pw");
+    eye.onclick = () => {
+      pw.type = pw.type === "password" ? "text" : "password";
+      eye.classList.toggle("on", pw.type === "text");
+      pw.focus();
+    };
+
     const go = async () => {
-      const b = $("#go"); b.disabled = true; b.textContent = "جارٍ الدخول…";
-      const { error } = await sb.auth.signInWithPassword({
-        email: $("#em").value.trim(), password: $("#pw").value
-      });
+      const b = $("#go"), e = $("#lerr");
+      const email = $("#em").value.trim(), pass = pw.value;
+      e.classList.add("hide");
+      if (!email || !pass) {
+        e.classList.remove("hide");
+        e.textContent = !email ? "اكتب بريدك الإلكتروني." : "اكتب كلمة المرور.";
+        (!email ? $("#em") : pw).focus();
+        return;
+      }
+      b.disabled = true; b.classList.add("busy"); b.textContent = "جارٍ الدخول…";
+      const { error } = await sb.auth.signInWithPassword({ email: email, password: pass });
       if (error) {
-        const e = $("#lerr"); e.classList.remove("hide");
+        e.classList.remove("hide");
         e.textContent = /Invalid/i.test(error.message)
-          ? "البريد أو كلمة المرور غير صحيحة." : error.message;
-        b.disabled = false; b.textContent = "دخول"; return;
+          ? "البريد أو كلمة المرور غير صحيحة."
+          : /network|fetch/i.test(error.message)
+            ? "لا يوجد اتصال بالإنترنت. تحقّق من الشبكة وحاول مرة أخرى."
+            : error.message;
+        b.disabled = false; b.classList.remove("busy"); b.textContent = "دخول";
+        tap(26);
+        return;
       }
       location.reload();
     };
     $("#go").onclick = go;
-    $("#pw").onkeydown = e => { if (e.key === "Enter") go(); };
+    $("#em").onkeydown = e => { if (e.key === "Enter") pw.focus(); };
+    pw.onkeydown = e => { if (e.key === "Enter") go(); };
   }
 
   async function logout() { await sb.auth.signOut(); location.reload(); }
@@ -907,8 +957,50 @@
     install, noInstall, flush, lightbox
   };
 
+  /* ═════════ تحديث التطبيق ═════════
+     المستخدم لا يعرف ما «عامل الخدمة»، ولا يجب أن يعرف. المطلوب منه
+     أن يرى زراً واحداً عندما تتوفّر نسخة أحدث. */
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(() => { });
+    navigator.serviceWorker.register("sw.js").then(reg => {
+      /* نسخة جديدة جاهزة وتنتظر: اعرض الشريط */
+      const offer = w => {
+        if (!w) return;
+        w.addEventListener("statechange", () => {
+          if (w.state === "installed" && navigator.serviceWorker.controller) showUpdateBar(w);
+        });
+      };
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg.waiting);
+      offer(reg.installing);
+      reg.addEventListener("updatefound", () => offer(reg.installing));
+      /* افحص وجود تحديث عند كل عودة للتطبيق */
+      addEventListener("visibilitychange", () => {
+        if (!document.hidden) reg.update().catch(() => { });
+      });
+      setInterval(() => reg.update().catch(() => { }), 15 * 60 * 1000);
+    }).catch(() => { });
+
+    let reloading = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    });
+  }
+
+  function showUpdateBar(worker) {
+    if (document.getElementById("updBar")) return;
+    const d = document.createElement("div");
+    d.id = "updBar";
+    d.className = "updbar";
+    d.innerHTML = `<span>نسخة جديدة من التطبيق جاهزة</span>
+      <button id="updGo">حدّث الآن</button>`;
+    document.body.appendChild(d);
+    d.querySelector("#updGo").onclick = () => {
+      d.querySelector("#updGo").textContent = "جارٍ…";
+      /* لو المستخدم في نص تشييك، الإجابات محفوظة في المسودة —
+         الشريط يظهر له لكن القرار قراره. */
+      try { worker.postMessage({ type: "SKIP_WAITING" }); } catch (_) { location.reload(); }
+    };
   }
   boot();
 })();

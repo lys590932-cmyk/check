@@ -51,18 +51,40 @@
       return d ? Math.round(n / d * 1000) / 10 : null;
     };
 
+    /* لون علامة الفرع — نفس هوية التطبيق */
+    (function(){
+      const b = (C.BRANDS || {})[ins.branches.brand_code] || C.BRAND_FALLBACK;
+      if(!b) return;
+      const r = document.documentElement.style;
+      r.setProperty("--accent", b.color);
+      r.setProperty("--brand-dark", b.dark || b.color);
+      const mt = document.querySelector('meta[name=theme-color]');
+      if(mt) mt.setAttribute("content", b.dark || b.color);
+    })();
+    document.body.classList.add("rep");
+
+    const _bl = (C.BRANDS || {})[ins.branches.brand_code] || C.BRAND_FALLBACK || {};
     V().innerHTML = `
-      <div class="card">
-        <div class="rep-head">
-          <div>
-            <h2 style="font-size:19px">${esc(ins.branches.name_ar)}</h2>
-            <p class="sub" style="margin:4px 0 0">${esc(ins.templates.name_ar)}${
-              ins.shift ? " — تشييك " + SHIFT_AR[ins.shift] : ""} · ${esc(fmtDate(ins.business_date))}</p>
+      <div class="rep-hero" style="--bd:${_bl.dark || "var(--accent)"}">
+        <div class="rh-top">
+          ${_bl.logo ? `<div class="rh-logo"><img src="${esc(_bl.logo)}" alt=""></div>` : ""}
+          <div class="rh-t">
+            <h2>${esc(ins.branches.name_ar)}</h2>
+            <p>${esc(ins.templates.name_ar)}${ins.shift ? " — تشييك " + SHIFT_AR[ins.shift] : ""}</p>
+            <p class="d">${esc(fmtDate(ins.business_date))}</p>
           </div>
-          <div class="ring" style="background:${cvar(ins.band)}">${n1(ins.score)}٪</div>
         </div>
-        ${ins.critical_fails ? `<div class="banner bad" style="margin-top:12px">
-          إنذار حرج — ${ins.critical_fails} بنداً حرجاً غير مطابق.</div>` : ""}
+        <div class="rh-score">
+          <div class="rh-num" dir="ltr">${n1(ins.score)}<small>٪</small></div>
+          <div class="rh-band">${BAND_AR[ins.band] || "—"}</div>
+          <div class="rh-tgt">المستهدف <span dir="ltr">${n1(ins.branches.target_pct)}٪</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        ${ins.critical_fails ? `<div class="banner bad" style="margin:0 0 12px">
+          <b>إنذار حرج</b> — <span dir="ltr">${ins.critical_fails}</span> بنداً حرجاً غير مطابق.
+          يجب إغلاقه خلال ٢٤ ساعة.</div>` : ""}
         <div class="meta">
           <div><div class="k">المنفِّذ</div><div class="v">${esc(ins.user_name)}</div></div>
           <div><div class="k">وقت الإرسال</div><div class="v">${ins.submitted_at ? esc(fmtTime(ins.submitted_at)) : "—"}</div></div>
