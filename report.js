@@ -10,8 +10,11 @@
     : b === "red" ? "var(--bad)" : "var(--ink-3)";
   const VAL = { 2: ["مطابق", "g"], 1: ["جزئي", "a"], 0: ["غير مطابق", "r"] };
 
-  /* نداء RPC مباشر — يعمل بلا جلسة، فالوضع العام لا مستخدم فيه */
-  async function rpc(fn, args){
+  /* نداء RPC بالمفتاح العام — للوضع العام وحده (لا جلسة فيه).
+     ⚠️ لا تستخدمه لأي دالة تتطلب صلاحية موظف: الترويسة هنا تحمل
+     المفتاح العام لا توكن الجلسة، فالخادم يعاملك كزائر ويرفض.
+     لتلك الدوال استخدم sb.rpc فهو يرفق توكن المستخدم تلقائياً. */
+  async function anonRpc(fn, args){
     const res = await fetch(C.SUPABASE_URL + "/rest/v1/rpc/" + fn, {
       method: "POST",
       headers: { apikey: C.SUPABASE_KEY, Authorization: "Bearer " + C.SUPABASE_KEY,
@@ -58,7 +61,7 @@
     if (PUB) {
       document.body.classList.add("pubview");
       try {
-        const p = await rpc("report_public_get", { p_token: token });
+        const p = await anonRpc("report_public_get", { p_token: token });
         const a = adaptPublic(p);
         ins = a.ins; ans = a.ans; PUBURLS = a.urls;
       } catch (e) {
@@ -1241,8 +1244,11 @@
           if (u) map[p] = u;
         }
         wait(true, "إنشاء الرابط", .8);
-        const token = await rpc("report_share_create",
+        /* sb.rpc يرفق توكن جلستك — وهذه الدالة تتطلب صلاحية موظف */
+        const { data: token, error: rerr } = await sb.rpc("report_share_create",
           { p_inspection: ins.id, p_photos: map });
+        if (rerr) throw rerr;
+        if (!token) throw new Error("لم يُرجع الخادم مفتاحاً");
         wait(false);
 
         const link = location.origin + location.pathname.replace(/[^/]*$/, "")
@@ -1260,11 +1266,22 @@
         await sheetLink(link);
       }catch(e){
         wait(false);
-        const m = String(e && e.message || e);
-        alert(/NOT_ALLOWED/.test(m) ? "إنشاء روابط المشاركة متاح للإدارة و QA & Training فقط."
-            : /report_share_create|schema cache|does not exist/i.test(m)
-              ? "شغّل ملف 060_report_share.sql على Supabase مرة واحدة أولاً."
-              : "تعذّر إنشاء الرابط: " + m);
+        /* رسائل دقيقة — كل حالة لها سبب وعلاج مختلف تماماً.
+           كانت الرسالة الواحدة تخفي الخطأ الحقيقي وتُرسل المستخدم
+           ليعيد تشغيل SQL شُغّل أصلاً. */
+        const m = String(e && (e.message || e.hint) || e);
+        alert(
+          /NOT_ALLOWED/.test(m)
+            ? "إنشاء روابط المشاركة متاح للإدارة و QA & Training فقط."
+          : /permission denied/i.test(m)
+            ? "الجلسة غير صالحة أو حسابك ليس ضمن الإدارة.\nسجّل خروجاً ثم دخولاً وأعد المحاولة."
+          : /schema cache|PGRST202|could not find the function/i.test(m)
+            ? "الدالة غير موجودة — شغّل 060_report_share.sql على Supabase مرة واحدة."
+          : /PGRST203|best candidate/i.test(m)
+            ? "توجد نسختان من الدالة في قاعدة البيانات.\nشغّل:\nDROP FUNCTION IF EXISTS report_share_create(uuid);"
+          : /NOT_FOUND/.test(m)
+            ? "هذا التقرير غير مُرسَل بعد، فلا يمكن مشاركته."
+            : "تعذّر إنشاء الرابط: " + m);
       }finally{ btn.disabled = false; wait(false); }
     };
 
