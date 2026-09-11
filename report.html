@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Noto+Kufi+Arabic:wght@500;700;900&display=swap">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=1.8.3">
 <style>
   .rep-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
   .ring{width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -21,7 +21,8 @@
   .meta .v{font-size:13px;font-weight:600}
   .it{padding:9px 0;border-bottom:1px dashed var(--rule-2);display:flex;gap:9px;align-items:flex-start}
   .it:last-child{border-bottom:0}
-  .it .st{flex:0 0 74px}
+  /* الحالة صارت آخر عنصر — أي في أقصى اليسار ضمن RTL */
+  .it .st{flex:0 0 78px;text-align:end}
   .it .bd{flex:1;min-width:0}
   .it .bd b{font-size:13.5px}
   .it .bd p{margin:3px 0 0;font-size:12.5px;color:var(--ink-2)}
@@ -143,8 +144,10 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="config.js"></script>
-<script src="lib.js"></script>
-<script src="report.js"></script>
+<!-- رقم النسخة في الرابط: يجعل كل إصدار ملفاً مختلفاً في نظر المتصفح،
+     فلا يمكن لأي ذاكرة قديمة أن تُقدّم نسخة سابقة. تُرفَع مع كل تحديث. -->
+<script src="config.js?v=1.8.3"></script>
+<script src="lib.js?v=1.8.3"></script>
+<script src="report.js?v=1.8.3"></script>
 </body>
 </html>

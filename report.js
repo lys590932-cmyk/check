@@ -270,8 +270,9 @@
         ${issues.map(a => {
           const [t, cls] = VAL[a.value] || ["—", "n"];
           const shots = (a.photos || []).map(p => urls[p]).filter(Boolean);
+          /* الاسم أولاً ثم الحالة: القارئ يبحث عن البند لا عن كلمة «مطابق».
+             في RTL أول عنصر في الترتيب هو الأيمن. */
           return `<div class="it">
-            <div class="st"><span class="pill ${cls}">${t}</span></div>
             <div class="bd"><b>${esc(a.items ? a.items.title_ar : a.item_code)}</b>
               ${a.items && a.items.critical ? '<span class="chip cr">حرج</span>' : ""}
               ${REPEAT.has(a.item_code) ? '<span class="chip rp">↻ متكرّر</span>' : ""}
@@ -282,7 +283,8 @@
                  · استحقاق ${esc(a.due_date || "—")}</p>
               ${shots.length ? `<div class="shots">${shots.map(u =>
                 `<img src="${u}" alt="دليل مصوّر" loading="lazy">`).join("")}</div>` : ""}
-            </div></div>`;
+            </div>
+            <div class="st"><span class="pill ${cls}">${t}</span></div></div>`;
         }).join("")}</div>` : `<div class="card"><h2>الملاحظات</h2>
         <div class="empty">لا ملاحظات — كل البنود مطابقة.</div></div>`}
 
@@ -291,14 +293,15 @@
           secs[s].map(a => {
             const [t, cls] = a.value == null ? ["لا ينطبق", "n"] : (VAL[a.value] || ["—", "n"]);
             const shots = (a.photos || []).map(p => urls[p]).filter(Boolean);
-            return `<div class="it"><div class="st"><span class="pill ${cls}">${t}</span></div>
+            return `<div class="it">
               <div class="bd"><b>${esc(a.items ? a.items.title_ar : a.item_code)}</b>
               ${a.items && a.items.critical ? '<span class="chip cr">حرج</span>' : ""}
               ${a.num_value != null ? `<span class="chip ph">${esc(a.items?.num_label || "قراءة")}: ${
                 a.num_value}${esc(a.items?.num_unit || "")}</span>` : ""}
               ${shots.length ? `<div class="shots">${shots.map(u =>
                 `<img src="${u}" alt="دليل مصوّر" loading="lazy">`).join("")}</div>` : ""}
-              </div></div>`;
+              </div>
+              <div class="st"><span class="pill ${cls}">${t}</span></div></div>`;
           }).join("")).join("")}
         <div class="sign">
           <div>توقيع المنفِّذ — ${esc(ins.user_name)}</div>
@@ -439,11 +442,12 @@
           const [t] = a.value == null ? ["لا ينطبق"] : (VAL[a.value] || ["—"]);
           const cl = a.value === 2 ? "#1a7a3c" : a.value === 1 ? "#a86209"
             : a.value === 0 ? "#a32222" : "#8b9a95";
+          /* الاسم أولاً ثم الحالة — نفس ترتيب الشاشة تماماً */
           return `<div style="display:flex;gap:9px;align-items:center;padding:5px 0;
             border-bottom:1px solid #f2f6f4;font-size:11.5px">
-            <span style="flex:0 0 68px;color:${cl};font-weight:700">${t}</span>
             <span style="flex:1">${esc(a.items ? a.items.title_ar : a.item_code)}${
               a.items && a.items.critical ? ' <span style="color:#a32222;font-size:9.5px">◆ حرج</span>' : ""}</span>
+            <span style="flex:0 0 72px;color:${cl};font-weight:700;text-align:end">${t}</span>
           </div>`;
         }).join("")).join("");
 
