@@ -55,6 +55,13 @@
     font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
     text-decoration:underline;padding:6px 10px}
 
+  /* الوضع العام: الزائر يرى التقرير فقط — لا أزرار إدارة ولا تنقّل */
+  body.pubview .staffonly{display:none !important}
+  .pubnote{display:flex;align-items:center;gap:9px;background:var(--surface-2);
+    border:1px solid var(--rule-2);border-radius:12px;padding:10px 13px;
+    margin-bottom:12px;font-size:11.5px;color:var(--ink-3);line-height:1.6}
+  .pubnote b{color:var(--ink-2)}
+
   /* لوحة «جاهز للمشاركة» — زرها هو اللمسة التي يقبلها النظام */
   .rdy{position:fixed;inset-inline:0;bottom:0;z-index:150;
     padding:13px 14px calc(13px + env(safe-area-inset-bottom));
@@ -106,10 +113,11 @@
   <div class="in">
     <div class="brand"><div class="n" id="coName">سفن ايكونز</div><h1>تقرير تشييك</h1></div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
-      <button class="btn g sm" onclick="history.length>1?history.back():location.href='index.html'">رجوع</button>
+      <button class="btn g sm staffonly" onclick="history.length>1?history.back():location.href='index.html'">رجوع</button>
       <button class="btn g sm" onclick="window.print()">طباعة</button>
-      <button class="btn g sm" id="shareTxtBtn">نص</button>
+      <button class="btn g sm staffonly" id="shareTxtBtn">نص</button>
       <button class="btn g sm" id="sharePdfBtn">📄 PDF</button>
+      <button class="btn g sm staffonly" id="shareLinkBtn">🔗 رابط</button>
       <button class="btn p sm" id="shareAllBtn">مشاركة التقرير</button>
     </div>
   </div>

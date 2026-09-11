@@ -10,22 +10,80 @@
     : b === "red" ? "var(--bad)" : "var(--ink-3)";
   const VAL = { 2: ["مطابق", "g"], 1: ["جزئي", "a"], 0: ["غير مطابق", "r"] };
 
+  /* نداء RPC مباشر — يعمل بلا جلسة، فالوضع العام لا مستخدم فيه */
+  async function rpc(fn, args){
+    const res = await fetch(C.SUPABASE_URL + "/rest/v1/rpc/" + fn, {
+      method: "POST",
+      headers: { apikey: C.SUPABASE_KEY, Authorization: "Bearer " + C.SUPABASE_KEY,
+                 "Content-Type": "application/json" },
+      body: JSON.stringify(args || {})
+    });
+    const txt = await res.text();
+    if (!res.ok) {
+      let m = txt; try { const j = JSON.parse(txt); m = j.message || j.hint || txt; } catch(e){}
+      throw new Error(String(m).split(":")[0] || ("HTTP " + res.status));
+    }
+    try { return JSON.parse(txt); } catch(e){ return txt; }
+  }
+
+  /* الحمولة العامة مسطّحة — نعيد تشكيلها لتطابق شكل الاستعلام العادي
+     حتى يبقى كود العرض واحداً للمسارين بلا تفريع. */
+  function adaptPublic(p){
+    const i = p.inspection || {};
+    const ins = Object.assign({}, i, {
+      branch_id: i.branch_id || null,
+      branches: { name_ar: i.branch_name, code: i.branch_code, brand_code: i.brand_code,
+                  target_pct: i.target_pct, lat: i.lat, lng: i.lng, phone: null },
+      templates: { name_ar: i.tpl_name, weighted: i.weighted }
+    });
+    const ans = (p.answers || []).map(a => Object.assign({}, a, {
+      items: { title_ar: a.title_ar, section_name: a.section_name, critical: a.critical,
+               weight: a.weight, num_label: a.num_label, num_unit: a.num_unit, sort: a.sort }
+    }));
+    return { ins, ans, urls: p.photo_urls || {}, expires: p.expires_at };
+  }
+
   async function boot() {
     $("#coName").textContent = C.company;
-    const id = new URLSearchParams(location.search).get("i");
-    if (!id) return void (V().innerHTML = `<div class="banner bad">لا يوجد رقم تقرير في الرابط.</div>`);
-    const u = await me();
-    if (!u) { location.replace("index.html"); return; }
+    const qs    = new URLSearchParams(location.search);
+    const token = qs.get("t");            // وضع الرابط العام
+    const id    = qs.get("i");
+    const PUB   = !!token;
 
-    const { data: ins, error } = await sb.from("inspections")
-      .select("*, branches(name_ar, code, brand_code, target_pct, lat, lng, geofence_m, phone), templates(name_ar, weighted)")
-      .eq("id", id).single();
-    if (error || !ins) return void (V().innerHTML =
-      `<div class="banner bad">التقرير غير موجود أو لا صلاحية لك عليه.</div>`);
+    if (!token && !id) return void (V().innerHTML =
+      `<div class="banner bad">لا يوجد رقم تقرير في الرابط.</div>`);
 
-    const { data: ans } = await sb.from("answers")
-      .select("*, items(title_ar, section_name, critical, weight, num_label, num_unit, sort)")
-      .eq("inspection_id", id);
+    let ins, ans, PUBURLS = null;
+
+    if (PUB) {
+      document.body.classList.add("pubview");
+      try {
+        const p = await rpc("report_public_get", { p_token: token });
+        const a = adaptPublic(p);
+        ins = a.ins; ans = a.ans; PUBURLS = a.urls;
+      } catch (e) {
+        return void (V().innerHTML = `<div class="card" style="text-align:center;padding:34px 18px">
+          <div style="font-size:40px">🔒</div>
+          <h2 style="margin-top:10px">الرابط لم يعد صالحاً</h2>
+          <p class="sub" style="margin-top:6px">انتهت صلاحيته أو أُلغي.
+            اطلب رابطاً جديداً من إدارة ${esc(C.company)}.</p></div>`);
+      }
+    } else {
+      const u = await me();
+      if (!u) { location.replace("index.html"); return; }
+
+      const r1 = await sb.from("inspections")
+        .select("*, branches(name_ar, code, brand_code, target_pct, lat, lng, geofence_m, phone), templates(name_ar, weighted)")
+        .eq("id", id).single();
+      if (r1.error || !r1.data) return void (V().innerHTML =
+        `<div class="banner bad">التقرير غير موجود أو لا صلاحية لك عليه.</div>`);
+      ins = r1.data;
+
+      const r2 = await sb.from("answers")
+        .select("*, items(title_ar, section_name, critical, weight, num_label, num_unit, sort)")
+        .eq("inspection_id", id);
+      ans = r2.data;
+    }
 
     const secs = {};
     (ans || []).sort((a, b) => (a.items?.sort || 0) - (b.items?.sort || 0))
@@ -45,6 +103,7 @@
        ═══════════════════════════════════════════════════════════ */
     let PREV = null, REPEAT = new Set();
     try{
+      if (PUB) throw 0;          /* الزائر لا يرى تقارير أخرى — ولا حتى للمقارنة */
       const { data: pv } = await sb.from("inspections")
         .select("id,score,business_date")
         .eq("branch_id", ins.branch_id).eq("template_key", ins.template_key)
@@ -62,10 +121,34 @@
 
     const delta = PREV && PREV.score != null && ins.score != null
       ? Math.round((ins.score - PREV.score) * 10) / 10 : null;
-    const urls = {};
-    await Promise.all((ans || []).flatMap(a => (a.photos || []).map(async p => {
-      urls[p] = await signedUrl(p, 7200);
-    })));
+    /* في الوضع العام الروابط جاهزة داخل الرابط نفسه — الزائر لا يملك
+       أي صلاحية على المخزن، فلا يستطيع توليد رابط لصورة أخرى. */
+    const urls = PUBURLS || {};
+    if (!PUB) {
+      await Promise.all((ans || []).flatMap(a => (a.photos || []).map(async p => {
+        urls[p] = await signedUrl(p, 7200);
+      })));
+    }
+
+    /* ── قائمة الأدلة المصوّرة ──
+       مصغّرة بعرض 168 بكسل لا تُثبت شيئاً: لا تُقرأ منها درجة حرارة
+       ولا تاريخ ملصق. وفي ملف PDF يُرسَل لطرف آخر لا يمكن «فتح» الصورة
+       بالضغط — الصورة إما تُقرأ كما هي أو لا قيمة لها.
+       لذلك ملحق مستقل يعرض كل صورة بحجمها الكامل.
+       الترتيب: الحرج أولاً ثم غير المطابق — وهو دليل أي نزاع. */
+    const SHOT_CAP = 12;               /* سقف يمنع ملفاً ضخماً لا يُرسَل */
+    const shotList = (ans || []).flatMap(a =>
+      (a.photos || []).map(p => ({
+        url: urls[p],
+        title: a.items ? a.items.title_ar : a.item_code,
+        section: a.items ? a.items.section_name : "",
+        value: a.value,
+        critical: !!(a.items && a.items.critical)
+      }))
+    ).filter(x => x.url).sort((x, y) => {
+      const rank = v => v === 0 ? 0 : v === 1 ? 1 : 2;
+      return (y.critical - x.critical) || (rank(x.value) - rank(y.value));
+    });
 
     const secScore = list => {
       const w = ins.templates.weighted;
@@ -473,6 +556,43 @@
             padding-inline-start:9px;border-inline-start:3px solid ${BR.color}">سجل البنود كاملاً</div>
           ${allRows}
         </section>
+
+        <!-- ملحق الأدلة المصوّرة -->
+        ${shotList.length ? `
+        <section class="blk" style="padding:6px 46px 10px">
+          <div style="font-size:13px;font-weight:800;margin-bottom:4px;
+            padding-inline-start:9px;border-inline-start:3px solid ${BR.color}">
+            ملحق الأدلة المصوّرة</div>
+          <div style="font-size:10.5px;color:#8b9a95;line-height:1.8">
+            كل صورة بحجمها الكامل ليُقرأ ما فيها — قراءة مقياس الحرارة، تاريخ الملصق،
+            حالة السطح. الختم داخل الصورة يحمل الوقت والإحداثيات لحظة التقاطها.
+            ${shotList.length > SHOT_CAP ? `<br>معروض ${SHOT_CAP} من
+              <span dir="ltr">${shotList.length}</span> صورة — الباقي في التقرير الإلكتروني.` : ""}
+          </div>
+        </section>
+        ${shotList.slice(0, SHOT_CAP).map((s, i) => `
+        <section class="blk" style="padding:10px 46px 6px">
+          <div style="border:1px solid #e6ece9;border-radius:10px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;
+              background:#f6f9f7;border-bottom:1px solid #e6ece9">
+              <span style="flex:0 0 auto;width:22px;height:22px;border-radius:50%;
+                background:${BR.color};color:#fff;font-size:11px;font-weight:800;
+                display:flex;align-items:center;justify-content:center" dir="ltr">${i + 1}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12.5px;font-weight:800">${esc(s.title)}</div>
+                <div style="font-size:10px;color:#6d817a">${esc(s.section)}</div>
+              </div>
+              ${s.critical ? `<span style="flex:0 0 auto;background:#f8dede;color:#a32222;
+                border-radius:99px;padding:2px 9px;font-size:9.5px;font-weight:800">حرج</span>` : ""}
+              <span style="flex:0 0 auto;background:${
+                s.value === 0 ? "#a32222" : s.value === 1 ? "#a86209" : "#1a7a3c"};color:#fff;
+                border-radius:99px;padding:2px 10px;font-size:9.5px;font-weight:800">${
+                s.value === 0 ? "غير مطابق" : s.value === 1 ? "جزئي" : "مطابق"}</span>
+            </div>
+            <img src="${s.url}" crossorigin="anonymous"
+              style="display:block;width:100%;max-height:420px;object-fit:contain;background:#fff">
+          </div>
+        </section>`).join("")}` : ""}
 
         <!-- التوقيعات والتذييل -->
         <section class="blk" style="padding:6px 46px 30px">
@@ -1097,6 +1217,83 @@
           : "تعذّر تجهيز التقرير: " + m);
       } finally { btn.disabled = false; wait(false); }
     };
+
+    /* ═══════════════════════════════════════════════════════════
+       رابط المشاركة — نفس تجربة التطبيق لدى الطرف الآخر
+       ───────────────────────────────────────────────────────────
+       ملف PDF مستند ميت: الصورة فيه بكسلات لا تُفتح ولا تُقرَّب.
+       الرابط يفتح نفس صفحة التقرير بعارض الصور والتكبير — يراها
+       مدير المطعم كما تراها أنت، بلا حساب وبلا تطبيق.
+
+       روابط الصور تُولَّد هنا من جهازك المُسجَّل دخوله وتُحفَظ مع
+       المفتاح، لأن Supabase لا توقّع الروابط داخل قاعدة البيانات.
+       ═══════════════════════════════════════════════════════════ */
+    if (!PUB) document.getElementById("shareLinkBtn").onclick = async () => {
+      const btn = document.getElementById("shareLinkBtn");
+      btn.disabled = true;
+      try{
+        wait(true, "تجهيز روابط الصور", .3);
+        /* صلاحية الصور = صلاحية الرابط: 30 يوماً */
+        const paths = [...new Set((ans || []).flatMap(a => a.photos || []))];
+        const map = {};
+        for (const p of paths){
+          const u = await signedUrl(p, 30 * 24 * 3600);
+          if (u) map[p] = u;
+        }
+        wait(true, "إنشاء الرابط", .8);
+        const token = await rpc("report_share_create",
+          { p_inspection: ins.id, p_photos: map });
+        wait(false);
+
+        const link = location.origin + location.pathname.replace(/[^/]*$/, "")
+                   + "report.html?t=" + token;
+        const msg = `تقرير تشييك — ${ins.branches.name_ar}\n` +
+          `${fmtDate(ins.business_date)}${ins.shift ? " · تشييك " + SHIFT_AR[ins.shift] : ""}\n` +
+          `النتيجة ${n1(ins.score)}٪\n\n${link}`;
+
+        /* المشاركة هنا آمنة: النص جاهز فوراً فاللمسة ما زالت سارية */
+        if (navigator.share){
+          try { await navigator.share({ title: "تقرير تشييك", text: msg }); return; }
+          catch(e){ if (String(e.name) === "AbortError") return; }
+        }
+        try { await navigator.clipboard.writeText(link); }catch(e){}
+        await sheetLink(link);
+      }catch(e){
+        wait(false);
+        const m = String(e && e.message || e);
+        alert(/NOT_ALLOWED/.test(m) ? "إنشاء روابط المشاركة متاح للإدارة و QA & Training فقط."
+            : /report_share_create|schema cache|does not exist/i.test(m)
+              ? "شغّل ملف 060_report_share.sql على Supabase مرة واحدة أولاً."
+              : "تعذّر إنشاء الرابط: " + m);
+      }finally{ btn.disabled = false; wait(false); }
+    };
+
+    /* لوحة صغيرة تعرض الرابط لمن لا يدعم متصفحه المشاركة */
+    function sheetLink(link){
+      document.getElementById("linkPanel")?.remove();
+      const el = document.createElement("div");
+      el.id = "linkPanel"; el.className = "rdy";
+      el.innerHTML = `<div class="rdy-in">
+        <div class="rdy-ic">🔗</div>
+        <div class="rdy-t">الرابط جاهز ونُسخ<small>صالح 30 يوماً · يفتح بلا حساب</small></div>
+        <button class="btn g" id="lnkClose">إغلاق</button></div>
+        <div style="max-width:560px;margin:9px auto 0"><input id="lnkIn" readonly
+          value="${esc(link)}" dir="ltr" style="width:100%;font-size:12px;padding:10px;
+          border:1px solid var(--rule);border-radius:9px;background:var(--surface-2)"></div>`;
+      document.body.appendChild(el);
+      el.querySelector("#lnkIn").onclick = e => e.target.select();
+      el.querySelector("#lnkClose").onclick = () => el.remove();
+    }
+
+    /* شريط تعريفي للزائر — يعرف من أين جاء التقرير وإلى متى يصلح */
+    if (PUB){
+      const nt = document.createElement("div");
+      nt.className = "pubnote";
+      nt.innerHTML = `<span style="font-size:17px">🔒</span>
+        <span>تقرير للعرض فقط صادر من <b>${esc(C.company)}</b> —
+        اضغط أي صورة لتكبيرها وقراءة تفاصيلها.</span>`;
+      V().prepend(nt);
+    }
 
     /* قادم من التطبيق: report.html?i=…&share=1
        نجهّز تلقائياً — لكن لا نستدعي المشاركة، فالنقرة البرمجية
