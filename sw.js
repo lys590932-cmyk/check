@@ -12,11 +12,12 @@
    • الصور والخطوط → الذاكرة أولاً. لا تتغيّر، وتحميلها من الشبكة
      في كل مرة يهدر باقة السائق ويبطئ الشاشة.
    ═══════════════════════════════════════════════════════════════ */
-const V = "si-v1.8.3";
+const V = "si-v1.9.0";
 
 const SHELL = [
-  "./", "./index.html", "./admin.html", "./report.html",
+  "./", "./index.html", "./admin.html", "./report.html", "./maint.html",
   "./styles.css", "./config.js", "./lib.js", "./app.js", "./admin.js", "./report.js",
+  "./maint.js",
   "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "./icon-512-maskable.png", "./apple-touch-icon.png",
   /* شعارات العلامات — تُخزَّن ليعمل التطبيق والتقرير بلا إنترنت */
