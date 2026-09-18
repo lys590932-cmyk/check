@@ -1146,7 +1146,9 @@ function printQR(){
   const bid = $("#qrB").value;
   const list = ASSETS.filter(a => a.status !== "retired" && (!bid || a.branch_id === bid));
   if(!list.length) return toast(t("as_none"), true);
-  const base = location.href.split("?")[0].replace(/maint\.html.*$/, "maint.html");
+  /* أساس الرابط = هذه الصفحة بلا استعلام. يعمل سواء كان العنوان
+     /check/maint/ أو /check/maint/index.html */
+  const base = location.origin + location.pathname;
   const w = window.open("", "_blank");
   w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8">
     <title>QR</title>
