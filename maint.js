@@ -17,6 +17,22 @@
 (function () {
 "use strict";
 
+/* شاشة ميتة بصمت أسوأ من شاشة بتقول إن فيه غلط. لو نقص ملف،
+   الزر يفضل شكله سليم والضغطة ماتعملش حاجة، ويقعد المستخدم
+   يجرّب الباسورد وهو مظبوط. فنقولها صريحة. */
+if(!window.SI || !window.SI.sb){
+  document.addEventListener("DOMContentLoaded", function(){
+    document.body.innerHTML =
+      '<div style="font-family:system-ui;direction:rtl;max-width:420px;margin:60px auto;'
+    + 'padding:24px;border-radius:14px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;'
+    + 'line-height:1.9;font-size:14px">'
+    + '<b style="font-size:16px">ملف ناقص على الخادم</b><br>'
+    + 'الصفحة تحتاج <code>lib.js</code> و <code>config.js</code> في نفس المجلد.<br>'
+    + 'ارفعهما مع <code>maint.html</code> و <code>maint.js</code>.'
+    + '</div>';
+  });
+  throw new Error("SI missing — lib.js not loaded");
+}
 const { sb, esc, $, $$, processPhoto, uploadPhoto, signedUrl, idbPut, idbAll, idbDel } = window.SI;
 const C = window.CONFIG;
 

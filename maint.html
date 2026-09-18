@@ -256,7 +256,11 @@ html[dir="rtl"] .toast.on{transform:translateX(50%) translateY(0)}
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=1.9.0"></script>
-<script src="maint.js?v=1.9.0"></script>
+<script src="config.js?v=1.9.1"></script>
+<!-- lib.js يعرّف window.SI (عميل Supabase، الكاميرا، الرفع، الطابور).
+     بدونه maint.js يقع من أول سطر ولا يُعرَّف أي زر — والشاشة تبدو
+     سليمة تماماً وهي ميتة. لا تحذفه. -->
+<script src="lib.js?v=1.9.1"></script>
+<script src="maint.js?v=1.9.1"></script>
 </body>
 </html>
